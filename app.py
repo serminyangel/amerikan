@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import json
+from streamlit_components_auth import st_local_storage # Standart depolama köprüsü yerine daha kararlı bileşen mimarisi kullanıyoruz
 
 # Sayfa Konfigürasyonu (Mobil Uyumlu)
 st.set_page_config(
@@ -18,6 +20,32 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Tarayıcı hafızası için JavaScript tabanlı kalıcı koruma mekanizması
+# Bu script sayfa her yüklendiğinde hafızadaki veriyi Streamlit'e geri basar
+if "js_helper" not in st.session_state:
+    st.components.v1.html(
+        """
+        <script>
+        const sendData = () => {
+            const data = localStorage.getItem('amerikan_yazboz_state');
+            if (data) {
+                window.parent.postMessage({type: 'streamlit:report_ready', data: JSON.parse(data)}, '*');
+            }
+        };
+        window.addEventListener('message', (e) => {
+            if (e.data.type === 'streamlit:set_item') {
+                localStorage.setItem('amerikan_yazboz_state', JSON.stringify(e.data.data));
+            } else if (e.data.type === 'streamlit:clear_item') {
+                localStorage.removeItem('amerikan_yazboz_state');
+            }
+        });
+        setTimeout(sendData, 500);
+        </script>
+        """,
+        height=0,
+    )
+    st.session_state.js_helper = True
+
 # 16 Turun Listesi
 ROUNDS = [
     "1. 4'lü Küt + 3'lü Seri", "2. 3x3'lü Küt", "3. 2x3'lü Seri + 2x3'lü Küt", "4. 3-3'lü Seri",
@@ -26,7 +54,7 @@ ROUNDS = [
     "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
 ]
 
-# Hafıza Alanlarını Güvenli Şekilde Tanımlama
+# Hafıza Alanlarını Tanımlama
 if 'initialized' not in st.session_state:
     st.session_state.initialized = False
 if 'players' not in st.session_state:
@@ -38,8 +66,29 @@ if 'round_details' not in st.session_state:
 if 'scores_df' not in st.session_state:
     st.session_state.scores_df = None
 
+# Ekrana basılan verileri tarayıcının yerel hafızasına yedekleme fonksiyonu
+def save_to_local_storage():
+    if st.session_state.scores_df is not None:
+        state_data = {
+            "initialized": st.session_state.initialized,
+            "players": st.session_state.players,
+            "completed_rounds": st.session_state.completed_rounds,
+            "round_details": st.session_state.round_details,
+            "scores_json": st.session_state.scores_df.to_json()
+        }
+        st.components.v1.html(
+            f"<script>window.parent.postMessage({{type: 'streamlit:set_item', data: {json.dumps(state_data)}}}, '*');</script>",
+            height=0
+        )
+
+def clear_local_storage():
+    st.components.v1.html(
+        "<script>window.parent.postMessage({type: 'streamlit:clear_item'}, '*');</script>",
+        height=0
+    )
+
 st.title("🃏 Dejenere Amerikan")
-st.markdown("### Akıllı Gelişmiş Skor Tabelası")
+st.markdown("### Kesin Hafıza Korumalı Skor Tabelası")
 
 # --- AŞAMA 1: GİRİŞ EKRANI ---
 if not st.session_state.initialized:
@@ -59,6 +108,7 @@ if not st.session_state.initialized:
             st.session_state.players = players_list
             st.session_state.scores_df = pd.DataFrame(0, index=ROUNDS, columns=players_list)
             st.session_state.initialized = True
+            save_to_local_storage()
             st.rerun()
 
 # --- AŞAMA 2: OYUN EKRANI ---
@@ -74,6 +124,7 @@ else:
         st.subheader(f"🏆 KAZANAN: {winner} ({totals[winner]} Puan)")
         st.dataframe(st.session_state.scores_df, use_container_width=True)
         if st.button("Yeni Oyun Başlat 🔄", key="reset_game_end_btn"):
+            clear_local_storage()
             st.session_state.clear()
             st.rerun()
             
@@ -91,14 +142,13 @@ else:
         
         st.markdown("---")
         st.subheader("✍️ Cezaları Girin")
-        st.info("💡 Tüm kutular boş gelir. İptal etmek veya elden bitmek için başına eksi koyarak sayı yazabilirsiniz (Örn: -50).")
+        st.info("💡 Tüm kutular boş gelir. İstediğiniz kutuya eksi değer girebilirsiniz (Örn: -50).")
         
         round_inputs = {}
         cols = st.columns(len(players))
         
         for i, player in enumerate(players):
             with cols[i]:
-                # Tüm kutuları tamamen boş ve eksi değer alabilir yapıyoruz
                 score = st.number_input(
                     f"{player}", 
                     min_value=-200, 
@@ -106,7 +156,7 @@ else:
                     value=None, 
                     step=1, 
                     key=f"sc_{player}_{selected_round}",
-                    placeholder="Sayı girin"
+                    placeholder="Sayı"
                 )
                 round_inputs[player] = score if score is not None else 0
                 
@@ -120,6 +170,7 @@ else:
                 "Söyleyen": announcer
             }
             st.session_state.completed_rounds.append(selected_round)
+            save_to_local_storage()
             st.success(f"Kaydedildi!")
             st.rerun()
             
@@ -163,11 +214,17 @@ else:
                 key="safe_download_btn"
             )
             
+            st.write("")
+            if st.button("🔄 Mevcut Oyunu Tamamen Sıfırla / Yeni Oyun", key="global_reset_btn"):
+                clear_local_storage()
+                st.session_state.clear()
+                st.rerun()
+                
             if st.session_state.completed_rounds:
-                st.write("")
                 if st.button("⚠️ En Son Girilen Turu İptal Et / Geri Al", key="global_undo_btn"):
                     last_round = st.session_state.completed_rounds.pop()
                     st.session_state.scores_df.loc[last_round] = 0
                     if last_round in st.session_state.round_details:
                         del st.session_state.round_details[last_round]
+                    save_to_local_storage()
                     st.rerun()
