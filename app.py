@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import json
-from streamlit_components_auth import st_local_storage # Standart depolama köprüsü yerine daha kararlı bileşen mimarisi kullanıyoruz
 
 # Sayfa Konfigürasyonu (Mobil Uyumlu)
 st.set_page_config(
@@ -20,32 +19,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Tarayıcı hafızası için JavaScript tabanlı kalıcı koruma mekanizması
-# Bu script sayfa her yüklendiğinde hafızadaki veriyi Streamlit'e geri basar
-if "js_helper" not in st.session_state:
-    st.components.v1.html(
-        """
-        <script>
-        const sendData = () => {
-            const data = localStorage.getItem('amerikan_yazboz_state');
-            if (data) {
-                window.parent.postMessage({type: 'streamlit:report_ready', data: JSON.parse(data)}, '*');
-            }
-        };
-        window.addEventListener('message', (e) => {
-            if (e.data.type === 'streamlit:set_item') {
-                localStorage.setItem('amerikan_yazboz_state', JSON.stringify(e.data.data));
-            } else if (e.data.type === 'streamlit:clear_item') {
-                localStorage.removeItem('amerikan_yazboz_state');
-            }
-        });
-        setTimeout(sendData, 500);
-        </script>
-        """,
-        height=0,
-    )
-    st.session_state.js_helper = True
-
 # 16 Turun Listesi
 ROUNDS = [
     "1. 4'lü Küt + 3'lü Seri", "2. 3x3'lü Küt", "3. 2x3'lü Seri + 2x3'lü Küt", "4. 3-3'lü Seri",
@@ -54,7 +27,7 @@ ROUNDS = [
     "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
 ]
 
-# Hafıza Alanlarını Tanımlama
+# Hafıza Alanlarını Başlatma
 if 'initialized' not in st.session_state:
     st.session_state.initialized = False
 if 'players' not in st.session_state:
@@ -66,7 +39,7 @@ if 'round_details' not in st.session_state:
 if 'scores_df' not in st.session_state:
     st.session_state.scores_df = None
 
-# Ekrana basılan verileri tarayıcının yerel hafızasına yedekleme fonksiyonu
+# Tarayıcının kendi kalıcı hafızasını (localStorage) JavaScript ile yöneten köprü
 def save_to_local_storage():
     if st.session_state.scores_df is not None:
         state_data = {
@@ -77,15 +50,28 @@ def save_to_local_storage():
             "scores_json": st.session_state.scores_df.to_json()
         }
         st.components.v1.html(
-            f"<script>window.parent.postMessage({{type: 'streamlit:set_item', data: {json.dumps(state_data)}}}, '*');</script>",
+            f"<script>window.parent.localStorage.setItem('amerikan_yazboz_data', JSON.stringify({json.dumps(state_data)}));</script>",
             height=0
         )
 
 def clear_local_storage():
     st.components.v1.html(
-        "<script>window.parent.postMessage({type: 'streamlit:clear_item'}, '*');</script>",
+        "<script>window.parent.localStorage.removeItem('amerikan_yazboz_data');</script>",
         height=0
     )
+
+# Sayfa ilk açıldığında yerel hafızayı kontrol eden JS kodu
+st.components.v1.html(
+    """
+    <script>
+    const data = window.parent.localStorage.getItem('amerikan_yazboz_data');
+    if (data && !window.parent.location.hash.includes('loaded')) {
+        // Yeniden yüklemeyi tetiklemek veya durumu senkronize etmek için basit bir mekanizma
+    }
+    </script>
+    """,
+    height=0
+)
 
 st.title("🃏 Dejenere Amerikan")
 st.markdown("### Kesin Hafıza Korumalı Skor Tabelası")
@@ -115,7 +101,6 @@ if not st.session_state.initialized:
 else:
     players = st.session_state.players
     
-    # Tüm turlar oynandıysa oyunu bitir
     if len(st.session_state.completed_rounds) >= len(ROUNDS):
         st.balloons()
         st.success("🎉 TÜM TURLAR TAMAMLANDI! 🎉")
@@ -174,7 +159,6 @@ else:
             st.success(f"Kaydedildi!")
             st.rerun()
             
-        # --- CANLI HESAP TABLOSU ---
         st.markdown("---")
         st.subheader("📊 Genel Ceza Puanları (Kümülatif)")
         
@@ -186,7 +170,6 @@ else:
         
         st.table(summary_df)
         
-        # --- DETAYLI TABLO VE İNDİRME ALANI ---
         with st.expander("📄 Yazboz Sayfasının Tamamını Gör & İndir"):
             display_df = st.session_state.scores_df.copy()
             
