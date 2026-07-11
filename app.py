@@ -26,7 +26,7 @@ ROUNDS = [
     "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
 ]
 
-# Hafıza Alanlarını (Session State) Güvenli Şekilde Tanımlama
+# Hafıza Alanlarını Güvenli Şekilde Tanımlama
 if 'initialized' not in st.session_state:
     st.session_state.initialized = False
 if 'players' not in st.session_state:
@@ -41,17 +41,17 @@ if 'scores_df' not in st.session_state:
 st.title("🃏 Dejenere Amerikan")
 st.markdown("### Akıllı Gelişmiş Skor Tabelası")
 
-# --- AŞAMA 1: 5 OYUNCULU GİRİŞ EKRANI (BOMBOŞ) ---
+# --- AŞAMA 1: GİRİŞ EKRANI ---
 if not st.session_state.initialized:
     st.subheader("👥 Oyuncu İsimlerini Girin")
     
-    p1 = st.text_input("1. Oyuncu", "")
-    p2 = st.text_input("2. Oyuncu", "")
-    p3 = st.text_input("3. Oyuncu", "")
-    p4 = st.text_input("4. Oyuncu", "")
-    p5 = st.text_input("5. Oyuncu", "")
+    p1 = st.text_input("1. Oyuncu", "", key="init_p1")
+    p2 = st.text_input("2. Oyuncu", "", key="init_p2")
+    p3 = st.text_input("3. Oyuncu", "", key="init_p3")
+    p4 = st.text_input("4. Oyuncu", "", key="init_p4")
+    p5 = st.text_input("5. Oyuncu", "", key="init_p5")
     
-    if st.button("Oyunu Başlat 🚀"):
+    if st.button("Oyunu Başlat 🚀", key="start_game_btn"):
         players_list = [p.strip() for p in [p1, p2, p3, p4, p5] if p.strip()]
         if len(players_list) < 2:
             st.error("Lütfen en az 2 oyuncu girin!")
@@ -61,7 +61,7 @@ if not st.session_state.initialized:
             st.session_state.initialized = True
             st.rerun()
 
-# --- AŞAMA 2: SKOR GİRİŞ VE CANLI TABLO ---
+# --- AŞAMA 2: OYUN EKRANI ---
 else:
     players = st.session_state.players
     
@@ -73,12 +73,11 @@ else:
         winner = totals.idxmin()
         st.subheader(f"🏆 KAZANAN: {winner} ({totals[winner]} Puan)")
         st.dataframe(st.session_state.scores_df, use_container_width=True)
-        if st.button("Yeni Oyun Başlat 🔄"):
+        if st.button("Yeni Oyun Başlat 🔄", key="reset_game_end_btn"):
             st.session_state.clear()
             st.rerun()
             
     else:
-        # Üst Panel: Tur Seçimi ve Sorumlular
         st.subheader("🎯 Tur Detayları")
         available_rounds = [r for r in ROUNDS if r not in st.session_state.completed_rounds]
         
@@ -92,28 +91,34 @@ else:
         
         st.markdown("---")
         st.subheader("✍️ Cezaları Girin")
+        st.info("💡 Tüm kutular boş gelir. İptal etmek veya elden bitmek için başına eksi koyarak sayı yazabilirsiniz (Örn: -50).")
         
-        # Seçilen tur için skor giriş alanları
         round_inputs = {}
         cols = st.columns(len(players))
         
         for i, player in enumerate(players):
             with cols[i]:
-                score = st.number_input(f"{player}", min_value=0, max_value=500, value=0, step=1, key=f"sc_{player}_{selected_round}")
-                round_inputs[player] = score
+                # Tüm kutuları tamamen boş ve eksi değer alabilir yapıyoruz
+                score = st.number_input(
+                    f"{player}", 
+                    min_value=-200, 
+                    max_value=500, 
+                    value=None, 
+                    step=1, 
+                    key=f"sc_{player}_{selected_round}",
+                    placeholder="Sayı girin"
+                )
+                round_inputs[player] = score if score is not None else 0
                 
-        # Skor Kaydetme Butonu
         st.write("")
         if st.button(f"➡️ {selected_round} Skorlarını Kaydet", key=f"btn_{selected_round}"):
             for player, score in round_inputs.items():
                 st.session_state.scores_df.at[selected_round, player] = score
             
-            # Detayları kaydet
             st.session_state.round_details[selected_round] = {
                 "Dağıtan": dealer,
                 "Söyleyen": announcer
             }
-            
             st.session_state.completed_rounds.append(selected_round)
             st.success(f"Kaydedildi!")
             st.rerun()
@@ -130,8 +135,8 @@ else:
         
         st.table(summary_df)
         
-        # Tüm tabloyu gösteren detay alanı
-        with st.expander("📄 Yazboz Sayfasının Tamamını Gör (Oynanan ve Kalan Turlar)"):
+        # --- DETAYLI TABLO VE İNDİRME ALANI ---
+        with st.expander("📄 Yazboz Sayfasının Tamamını Gör & İndir"):
             display_df = st.session_state.scores_df.copy()
             
             dealers_col = []
@@ -148,6 +153,15 @@ else:
             display_df.insert(0, "Kağıt Dağıtan", dealers_col)
             
             st.dataframe(display_df, use_container_width=True)
+            
+            csv_data = display_df.to_csv(index=True).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Mevcut Durumu Excel/CSV Olarak İndir",
+                data=csv_data,
+                file_name="amerikan_yazboz_skor.csv",
+                mime="text/csv",
+                key="safe_download_btn"
+            )
             
             if st.session_state.completed_rounds:
                 st.write("")
