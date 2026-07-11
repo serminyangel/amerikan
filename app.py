@@ -41,15 +41,15 @@ if 'scores_df' not in st.session_state:
 st.title("🃏 Dejenere Amerikan")
 st.markdown("### Akıllı Gelişmiş Skor Tabelası")
 
-# --- AŞAMA 1: 5 OYUNCULU GİRİŞ EKRANI ---
+# --- AŞAMA 1: 5 OYUNCULU GİRİŞ EKRANI (BOMBOŞ) ---
 if not st.session_state.initialized:
     st.subheader("👥 Oyuncu İsimlerini Girin")
     
-    p1 = st.text_input("1. Oyuncu", "Mecit")
-    p2 = st.text_input("2. Oyuncu", "Sermin")
-    p3 = st.text_input("3. Oyuncu", "Oyuncu 3")
-    p4 = st.text_input("4. Oyuncu", "Oyuncu 4")
-    p5 = st.text_input("5. Oyuncu", "Oyuncu 5")
+    p1 = st.text_input("1. Oyuncu", "")
+    p2 = st.text_input("2. Oyuncu", "")
+    p3 = st.text_input("3. Oyuncu", "")
+    p4 = st.text_input("4. Oyuncu", "")
+    p5 = st.text_input("5. Oyuncu", "")
     
     if st.button("Oyunu Başlat 🚀"):
         players_list = [p.strip() for p in [p1, p2, p3, p4, p5] if p.strip()]
