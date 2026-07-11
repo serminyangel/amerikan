@@ -40,8 +40,8 @@ st.markdown("### Akıllı Gelişmiş Skor Tabelası")
 if not st.session_state.initialized:
     st.subheader("👥 Oyuncu İsimlerini Girin")
     
-    p1 = st.text_input("1. Oyuncu", "Mecit")
-    p2 = st.text_input("2. Oyuncu", "Sermin")
+    p1 = st.text_input("1. Oyuncu", "Oyuncu 1")
+    p2 = st.text_input("2. Oyuncu", "Oyuncu 2")
     p3 = st.text_input("3. Oyuncu", "Oyuncu 3")
     p4 = st.text_input("4. Oyuncu", "Oyuncu 4")
     p5 = st.text_input("5. Oyuncu", "Oyuncu 5")
