@@ -1,15 +1,15 @@
 import streamlit as st
 import pandas as pd
 import json
+import requests
 
-# Sayfa Konfigürasyonu (Mobil Uyumlu)
+# Sayfa Konfigürasyonu
 st.set_page_config(
     page_title="Dejenere Amerikan Yazboz",
     page_icon="🃏",
     layout="centered"
 )
 
-# Stil Özelleştirmeleri
 st.markdown("""
     <style>
     .main .block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
@@ -27,54 +27,50 @@ ROUNDS = [
     "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
 ]
 
-# Hafıza Alanlarını Başlatma
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = False
-if 'players' not in st.session_state:
-    st.session_state.players = []
-if 'completed_rounds' not in st.session_state:
-    st.session_state.completed_rounds = [] 
-if 'round_details' not in st.session_state:
-    st.session_state.round_details = {}
-if 'scores_df' not in st.session_state:
-    st.session_state.scores_df = None
+# GÜVENLİ BULUT DEPOLAMA KÖPRÜSÜ (KVDB.IO)
+# Sizin oyununuza özel benzersiz bir bulut anahtarı
+DB_URL = "https://kvdb.io/K38qgX6T57g8uX6fG68p8T/dejenere_yazboz_v2"
 
-# Tarayıcının kendi kalıcı hafızasını (localStorage) JavaScript ile yöneten köprü
-def save_to_local_storage():
-    if st.session_state.scores_df is not None:
-        state_data = {
-            "initialized": st.session_state.initialized,
-            "players": st.session_state.players,
-            "completed_rounds": st.session_state.completed_rounds,
-            "round_details": st.session_state.round_details,
-            "scores_json": st.session_state.scores_df.to_json()
-        }
-        st.components.v1.html(
-            f"<script>window.parent.localStorage.setItem('amerikan_yazboz_data', JSON.stringify({json.dumps(state_data)}));</script>",
-            height=0
-        )
+def save_to_cloud(state_data):
+    try:
+        requests.post(DB_URL, json=state_data, timeout=5)
+    except Exception:
+        pass
 
-def clear_local_storage():
-    st.components.v1.html(
-        "<script>window.parent.localStorage.removeItem('amerikan_yazboz_data');</script>",
-        height=0
-    )
+def load_from_cloud():
+    try:
+        response = requests.get(DB_URL, timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except Exception:
+        pass
+    return None
 
-# Sayfa ilk açıldığında yerel hafızayı kontrol eden JS kodu
-st.components.v1.html(
-    """
-    <script>
-    const data = window.parent.localStorage.getItem('amerikan_yazboz_data');
-    if (data && !window.parent.location.hash.includes('loaded')) {
-        // Yeniden yüklemeyi tetiklemek veya durumu senkronize etmek için basit bir mekanizma
-    }
-    </script>
-    """,
-    height=0
-)
+def clear_cloud():
+    try:
+        requests.delete(DB_URL, timeout=5)
+    except Exception:
+        pass
 
-st.title("🃏 Dejenere Amerikan")
-st.markdown("### Kesin Hafıza Korumalı Skor Tabelası")
+# İlk açılışta buluttaki aktif oyunu kontrol et ve yükle
+if 'checked_cloud' not in st.session_state:
+    cloud_data = load_from_cloud()
+    if cloud_data and cloud_data.get("initialized"):
+        st.session_state.initialized = True
+        st.session_state.players = cloud_data["players"]
+        st.session_state.completed_rounds = cloud_data["completed_rounds"]
+        st.session_state.round_details = cloud_data["round_details"]
+        st.session_state.scores_df = pd.read_json(cloud_data["scores_json"])
+    else:
+        st.session_state.initialized = False
+        st.session_state.players = []
+        st.session_state.completed_rounds = []
+        st.session_state.round_details = {}
+        st.session_state.scores_df = None
+    st.session_state.checked_cloud = True
+
+st.title("🃏 Dejenere Amerikan ⭐")
+st.markdown("### ☁️ Bulut Korumalı Canlı Yazboz")
 
 # --- AŞAMA 1: GİRİŞ EKRANI ---
 if not st.session_state.initialized:
@@ -94,7 +90,16 @@ if not st.session_state.initialized:
             st.session_state.players = players_list
             st.session_state.scores_df = pd.DataFrame(0, index=ROUNDS, columns=players_list)
             st.session_state.initialized = True
-            save_to_local_storage()
+            
+            # Buluta ilk kaydı yap
+            state_data = {
+                "initialized": True,
+                "players": players_list,
+                "completed_rounds": [],
+                "round_details": {},
+                "scores_json": st.session_state.scores_df.to_json()
+            }
+            save_to_cloud(state_data)
             st.rerun()
 
 # --- AŞAMA 2: OYUN EKRANI ---
@@ -109,7 +114,7 @@ else:
         st.subheader(f"🏆 KAZANAN: {winner} ({totals[winner]} Puan)")
         st.dataframe(st.session_state.scores_df, use_container_width=True)
         if st.button("Yeni Oyun Başlat 🔄", key="reset_game_end_btn"):
-            clear_local_storage()
+            clear_cloud()
             st.session_state.clear()
             st.rerun()
             
@@ -155,7 +160,17 @@ else:
                 "Söyleyen": announcer
             }
             st.session_state.completed_rounds.append(selected_round)
-            save_to_local_storage()
+            
+            # Değişiklikleri buluta gönder
+            state_data = {
+                "initialized": True,
+                "players": st.session_state.players,
+                "completed_rounds": st.session_state.completed_rounds,
+                "round_details": st.session_state.round_details,
+                "scores_json": st.session_state.scores_df.to_json()
+            }
+            save_to_cloud(state_data)
+            
             st.success(f"Kaydedildi!")
             st.rerun()
             
@@ -199,7 +214,7 @@ else:
             
             st.write("")
             if st.button("🔄 Mevcut Oyunu Tamamen Sıfırla / Yeni Oyun", key="global_reset_btn"):
-                clear_local_storage()
+                clear_cloud()
                 st.session_state.clear()
                 st.rerun()
                 
@@ -209,5 +224,14 @@ else:
                     st.session_state.scores_df.loc[last_round] = 0
                     if last_round in st.session_state.round_details:
                         del st.session_state.round_details[last_round]
-                    save_to_local_storage()
+                    
+                    # Güncel hali buluta yedekle
+                    state_data = {
+                        "initialized": True,
+                        "players": st.session_state.players,
+                        "completed_rounds": st.session_state.completed_rounds,
+                        "round_details": st.session_state.round_details,
+                        "scores_json": st.session_state.scores_df.to_json()
+                    }
+                    save_to_cloud(state_data)
                     st.rerun()
