@@ -10,6 +10,7 @@ st.set_page_config(
     layout="centered"
 )
 
+# Stil Özelleştirmeleri
 st.markdown("""
     <style>
     .main .block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
@@ -27,8 +28,7 @@ ROUNDS = [
     "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
 ]
 
-# GÜVENLİ BULUT DEPOLAMA KÖPRÜSÜ (KVDB.IO)
-# Sizin oyununuza özel benzersiz bir bulut anahtarı
+# GÜVENLİ BULUT DEPOLAMA KÖPRÜSÜ
 DB_URL = "https://kvdb.io/K38qgX6T57g8uX6fG68p8T/dejenere_yazboz_v2"
 
 def save_to_cloud(state_data):
@@ -52,8 +52,9 @@ def clear_cloud():
     except Exception:
         pass
 
-# İlk açılışta buluttaki aktif oyunu kontrol et ve yükle
-if 'checked_cloud' not in st.session_state:
+# === GÜVENLİK KİLİDİ: SUNUCU UYSA BİLE BULUTTAN ZORLA GERİ YÜKLEME ===
+# Eğer session_state sıfırlanmışsa ama bulutta veri varsa, zorla geri yükleme yapıyoruz.
+if ('scores_df' not in st.session_state) or (st.session_state.scores_df is None) or (not st.session_state.initialized):
     cloud_data = load_from_cloud()
     if cloud_data and cloud_data.get("initialized"):
         st.session_state.initialized = True
@@ -67,7 +68,6 @@ if 'checked_cloud' not in st.session_state:
         st.session_state.completed_rounds = []
         st.session_state.round_details = {}
         st.session_state.scores_df = None
-    st.session_state.checked_cloud = True
 
 st.title("🃏 Dejenere Amerikan ⭐")
 st.markdown("### ☁️ Bulut Korumalı Canlı Yazboz")
@@ -91,7 +91,7 @@ if not st.session_state.initialized:
             st.session_state.scores_df = pd.DataFrame(0, index=ROUNDS, columns=players_list)
             st.session_state.initialized = True
             
-            # Buluta ilk kaydı yap
+            # İlk durumu buluta kaydet
             state_data = {
                 "initialized": True,
                 "players": players_list,
@@ -106,6 +106,7 @@ if not st.session_state.initialized:
 else:
     players = st.session_state.players
     
+    # Tüm turlar oynandıysa oyunu bitir
     if len(st.session_state.completed_rounds) >= len(ROUNDS):
         st.balloons()
         st.success("🎉 TÜM TURLAR TAMAMLANDI! 🎉")
@@ -161,7 +162,7 @@ else:
             }
             st.session_state.completed_rounds.append(selected_round)
             
-            # Değişiklikleri buluta gönder
+            # Her kayıt işleminde güncel durumu buluta bas
             state_data = {
                 "initialized": True,
                 "players": st.session_state.players,
@@ -174,6 +175,7 @@ else:
             st.success(f"Kaydedildi!")
             st.rerun()
             
+        # --- CANLI HESAP TABLOSU ---
         st.markdown("---")
         st.subheader("📊 Genel Ceza Puanları (Kümülatif)")
         
@@ -185,6 +187,7 @@ else:
         
         st.table(summary_df)
         
+        # --- DETAYLI TABLO VE İNDİRME ALANI ---
         with st.expander("📄 Yazboz Sayfasının Tamamını Gör & İndir"):
             display_df = st.session_state.scores_df.copy()
             
@@ -225,7 +228,7 @@ else:
                     if last_round in st.session_state.round_details:
                         del st.session_state.round_details[last_round]
                     
-                    # Güncel hali buluta yedekle
+                    # Geri aldıktan sonra bulutu güncelle
                     state_data = {
                         "initialized": True,
                         "players": st.session_state.players,
