@@ -1,25 +1,40 @@
+import streamlit as st
+import streamlit.components.v1 as components
+
+# Sayfa başlığı ve ikon ayarları
+st.set_page_config(page_title="Amerikan 5", page_icon="🃏", layout="centered")
+
+# CSS ile Streamlit'in kendi boşluklarını sıfırlayalım ki arayüz tam otursun
+st.markdown("""
+    <style>
+        .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+        iframe { background-color: transparent; }
+    </style>
+""", unsafe_allow_html=True)
+
+# Hazırladığımız HTML ve JavaScript arayüzünü Python metni olarak buraya gömüyoruz
+html_content = """
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Amerikan 5 - Canlı Skor Tahtası</title>
-    <!-- Mobil uyumlu modern arayüz için Tailwind CSS -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center p-4">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center p-2">
 
-    <!-- Üst Başlık Alanı -->
-    <div class="w-full max-w-md text-center my-6">
+    <!-- Üst Başlık -->
+    <div class="w-full max-w-md text-center my-4">
         <h1 class="text-3xl font-extrabold text-emerald-400 tracking-wide uppercase">Amerikan 5</h1>
         <p class="text-xs text-slate-400 mt-1">Canlı Skor Takip Sistemi</p>
     </div>
 
-    <!-- Canlı Skor Tablosu Kartı -->
-    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl border border-slate-700/50 p-5 mb-6">
+    <!-- Canlı Skor Tablosu -->
+    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl border border-slate-700/50 p-5 mb-5">
         <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-3">
             <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Anlık Durum
@@ -29,12 +44,10 @@
             </button>
         </div>
 
-        <!-- Yükleniyor Uyarısı -->
         <div id="loading" class="text-center py-8 text-slate-400 text-sm">
             Skorlar Google Sheets'ten çekiliyor...
         </div>
 
-        <!-- Esas Skor Tablosu -->
         <div id="tableContainer" class="hidden overflow-hidden rounded-xl border border-slate-750">
             <table class="w-full text-left border-collapse">
                 <thead>
@@ -44,18 +57,18 @@
                     </tr>
                 </thead>
                 <tbody id="skorGövdesi" class="divide-y divide-slate-700/50 text-sm">
-                    <!-- Veriler dinamik olarak buraya dolacak -->
+                    <!-- Google Sheets verileri buraya dolacak -->
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Yönetici Giriş Paneli (Yöntem 2) -->
+    <!-- Şifreli Yönetici Giriş Paneli -->
     <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl border border-slate-700/50 p-5">
         <div id="adminGirisAlani">
             <h3 class="text-sm font-semibold text-slate-400 mb-3">Skor Girişi Yap (Sadece Yönetici)</h3>
             <div class="flex gap-2">
-                <input type="password" id="pinKodu" placeholder="PIN Kodu Girin" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm w-full focus:outline-none focus:border-emerald-500 transition">
+                <input type="password" id="pinKodu" placeholder="PIN Kodu Girin" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm w-full focus:outline-none focus:border-emerald-500 transition text-white">
                 <button onclick="adminDogrula()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 whitespace-nowrap">
                     Paneli Aç
                 </button>
@@ -84,20 +97,15 @@
         </div>
     </div>
 
-    <!-- Sistem Scriptleri -->
+    <!-- Haberleşme Scriptleri -->
     <script>
-        // Senin aldığın o efsanevi Google Apps Script URL'si doğrudan buraya bağlandı
         const API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec";
-        
-        // Giriş şifren (İstediğin gibi değiştirebilirsin)
         const ADMIN_PIN = "1905"; 
 
-        // Sayfa ilk yüklendiğinde skorları otomatik çek
         window.onload = function() {
             skorlariGetir();
         };
 
-        // GOOGLE SHEETS'TEN VERİ ÇEKME (Herkes izleyebilir)
         function skorlariGetir() {
             const loadingDiv = document.getElementById("loading");
             const tableContainer = document.getElementById("tableContainer");
@@ -132,7 +140,6 @@
                 });
         }
 
-        // YÖNETİCİ ŞİFRE DOĞRULAMA (Yöntem 2)
         function adminDogrula() {
             const pinInput = document.getElementById("pinKodu").value;
             if(pinInput === ADMIN_PIN) {
@@ -149,7 +156,6 @@
             document.getElementById("skorEklemeAlani").classList.add("hidden");
         }
 
-        // GOOGLE SHEETS'E SKOR GÖNDERME (Sadece şifreyi bilen yönetici)
         function skorGonder() {
             const isim = document.getElementById("oyuncuAd").value.trim();
             const skor = document.getElementById("oyuncuSkor").value.trim();
@@ -164,7 +170,6 @@
             btn.innerText = "Veri Tabloya Yazılıyor...";
             btn.className = "w-full bg-slate-600 text-slate-400 py-3 rounded-xl font-bold text-sm cursor-not-allowed mt-2";
 
-            // Gönderilecek JSON paketi
             const veriPaketi = {
                 oyuncu: isim,
                 skor: parseInt(skor)
@@ -172,24 +177,21 @@
 
             fetch(API_URL, {
                 method: "POST",
-                mode: "no-cors", // Google Apps Script POST yönlendirmesi için gerekli güvenli mod
+                mode: "no-cors",
                 headers: {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify(veriPaketi)
             })
             .then(() => {
-                // no-cors modu yanıtı doğrudan okuyamaz ama işlem başarılı tamamlanır
-                alert(`${isim} için ${skor} puan başarıyla gönderildi!`);
+                alert(isim + " için " + skor + " puan başarıyla gönderildi!");
                 document.getElementById("oyuncuAd").value = "";
                 document.getElementById("oyuncuSkor").value = "";
                 
-                // Butonu eski haline getir ve tabloyu güncelle
                 btn.disabled = false;
                 btn.innerText = "Skoru Tabloya İşle";
                 btn.className = "w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm transition active:scale-95 shadow-lg shadow-emerald-900/20 mt-2";
                 
-                // Tabloyu otomatik yenile ki herkes anında görsün
                 setTimeout(skorlariGetir, 1500);
             })
             .catch(error => {
@@ -203,3 +205,7 @@
     </script>
 </body>
 </html>
+"""
+
+# Streamlit üzerinden paketimizi ekrana basıyoruz
+components.html(html_content, height=800, scrolling=True)
