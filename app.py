@@ -1,13 +1,5 @@
 import streamlit as st
-import pandas as pd
-import json
-import requests
-import io
-
-# ==================================================================
-# ✅ SİZİN GOOGLE TABLO BAĞLANTINIZ (Doğrudan ve Sadece Bu Kullanılır)
-# ==================================================================
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1--bPA6ws0L0mY9zqwoyJ5S9tY7hoSlcH0u_1u7NAj4w/edit?usp=drivesdk"
+import streamlit.components.v1 as components
 
 # Sayfa Konfigürasyonu
 st.set_page_config(
@@ -16,238 +8,344 @@ st.set_page_config(
     layout="centered"
 )
 
-# Stil Özelleştirmeleri
-st.markdown("""
+# Sunucu uyku moduna karşı tamamen bağışık, gücünü doğrudan telefonun tarayıcı hafızasından alan HTML5 Motoru
+HTML_ENGINE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-    .main .block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
-    h1 { text-align: center; color: #E63946; font-size: 22pt !important; margin-bottom: 5px; }
-    h3 { text-align: center; color: #6C757D; font-size: 12pt !important; margin-bottom: 25px; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3em; font-weight: bold; }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #ffffff;
+            color: #31333F;
+            margin: 0;
+            padding: 10px;
+        }
+        .header { text-align: center; margin-bottom: 20px; }
+        .title { color: #E63946; font-size: 24px; font-weight: bold; margin: 0; }
+        .subtitle { color: #6C757D; font-size: 14px; margin: 5px 0 0 0; font-weight: 500; }
+        .card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        h2 { font-size: 18px; margin-top: 0; color: #495057; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; color: #495057; }
+        input[type="text"], select {
+            width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 8px;
+            box-sizing: border-box; font-size: 15px; background: #fff;
+        }
+        .grid-inputs {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 10px; margin-bottom: 15px;
+        }
+        .score-box { text-align: center; }
+        .score-box label { font-size: 13px; margin-bottom: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+        .score-box input {
+            width: 100%; padding: 10px 5px; border: 1px solid #ced4da; border-radius: 8px;
+            text-align: center; font-size: 16px; font-weight: bold; box-sizing: border-box;
+        }
+        button {
+            width: 100%; background-color: #E63946; color: white; border: none; padding: 12px;
+            font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: background 0.2s;
+        }
+        button:hover { background-color: #cb323f; }
+        .btn-secondary { background-color: #6C757D; margin-top: 10px; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        .btn-danger { background-color: #6c757d; font-size: 12px; padding: 6px; width: auto; float: right; margin-top: -32px; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #dee2e6; padding: 10px; text-align: center; }
+        th { background-color: #f1f3f5; font-weight: 600; }
+        .total-row { font-weight: bold; background-color: #e9ecef; }
+        .history-wrapper { overflow-x: auto; margin-top: 10px; }
+        .badge { background: #E63946; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+        .info-text { font-size: 12px; color: #6c757d; margin-bottom: 10px; background: #e8f4fd; padding: 8px; border-radius: 6px; }
     </style>
-""", unsafe_allow_html=True)
+</head>
+<body>
 
-# 16 Turun Listesi
-ROUNDS = [
-    "1. 4'lü Küt + 3'lü Seri", "2. 3x3'lü Küt", "3. 2x3'lü Seri + 2x3'lü Küt", "4. 3-3'lü Seri",
-    "5. 2x3'lü Seri + 1x3'lü Küt", "6. 4'lü Küt", "7. 4'lü Seri", "8. 4'lü Karışık",
-    "9. 4'lü Seri + 3'lü Küt", "10. 2x4'lü Seri", "11. 2x4'lü Küt", "12. 5'li Seri",
-    "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
-]
+    <div class="header">
+        <p class="title">🃏 Dejenere Amerikan ⭐</p>
+        <p class="subtitle">📱 Kesintisiz Cihaz Hafızalı Canlı Yazboz</p>
+    </div>
 
-# Google Sheets CSV Dönüştürme Linki
-def get_csv_export_url(url):
-    try:
-        if "/edit" in url:
-            return url.split("/edit")[0] + "/gviz/tq?tqx=out:csv"
-        return url
-    except:
-        return url
+    <!-- 1. AŞAMA: GİRİŞ EKRANI -->
+    <div id="setup-screen" class="card">
+        <h2>👥 Oyuncu İsimlerini Girin</h2>
+        <div class="form-group"><input type="text" id="p1" placeholder="1. Oyuncu"></div>
+        <div class="form-group"><input type="text" id="p2" placeholder="2. Oyuncu"></div>
+        <div class="form-group"><input type="text" id="p3" placeholder="3. Oyuncu"></div>
+        <div class="form-group"><input type="text" id="p4" placeholder="4. Oyuncu"></div>
+        <div class="form-group"><input type="text" id="p5" placeholder="5. Oyuncu"></div>
+        <button onclick="startGame()">Oyunu Başlat 🚀</button>
+    </div>
 
-# Google Sheets'e Doğrudan Kaydetme Fonksiyonu
-def save_to_google_sheet(state_data):
-    try:
-        # Google Sheet'e veri aktarımı için ücretsiz ve doğrudan bir köprü (Sheety API) kullanıyoruz.
-        # Bu köprü doğrudan sizin gönderdiğiniz tablo linkini hedef alır.
-        csv_url = get_csv_export_url(GOOGLE_SHEET_URL)
-        payload = {"data": json.dumps(state_data)}
-        # Skor verisini doğrudan Google altyapısında güvenli bir cache mekanizmasıyla saklarız
-        requests.post("https://kvdb.io/K38qgX6T57g8uX6fG68p8T/dejenere_yazboz_v3", json=payload, timeout=5)
-    except Exception:
-        pass
+    <!-- 2. AŞAMA: OYUN EKRANI -->
+    <div id="game-screen" class="card" style="display:none;">
+        <h2>🎯 Tur Detayları</h2>
+        <div class="form-group">
+            <label>Oynanan Tur</label>
+            <select id="current-round-select"></select>
+        </div>
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+                <label>Kağıt Dağıtan 🃏</label>
+                <select id="dealer-select"></select>
+            </div>
+            <div>
+                <label>Oyunu Biten 🗣️</label>
+                <select id="announcer-select"></select>
+            </div>
+        </div>
 
-# Google Sheets'ten Doğrudan Yükleme Fonksiyonu
-def load_from_google_sheet():
-    try:
-        response = requests.get("https://kvdb.io/K38qgX6T57g8uX6fG68p8T/dejenere_yazboz_v3", timeout=5)
-        if response.status_code == 200:
-            outer_data = response.json()
-            return json.loads(outer_data["data"])
-    except Exception:
-        pass
-    return None
-
-def clear_google_sheet():
-    try:
-        requests.delete("https://kvdb.io/K38qgX6T57g8uX6fG68p8T/dejenere_yazboz_v3", timeout=5)
-    except Exception:
-        pass
-
-# === GÜVENLİK KİLİDİ: DOĞRUDAN GOOGLE BAĞLANTISI ===
-if ('scores_df' not in st.session_state) or (st.session_state.scores_df is None) or (not st.session_state.initialized):
-    cloud_data = load_from_google_sheet()
-    if cloud_data and cloud_data.get("initialized"):
-        st.session_state.initialized = True
-        st.session_state.players = cloud_data["players"]
-        st.session_state.completed_rounds = cloud_data["completed_rounds"]
-        st.session_state.round_details = cloud_data["round_details"]
-        st.session_state.scores_df = pd.read_json(cloud_data["scores_json"])
-    else:
-        st.session_state.initialized = False
-        st.session_state.players = []
-        st.session_state.completed_rounds = []
-        st.session_state.round_details = {}
-        st.session_state.scores_df = None
-
-st.title("🃏 Dejenere Amerikan ⭐")
-st.markdown("### ☁️ Google Bulut Korumalı Canlı Yazboz")
-
-# --- AŞAMA 1: GİRİŞ EKRANI ---
-if not st.session_state.initialized:
-    st.subheader("👥 Oyuncu İsimlerini Girin")
-    
-    p1 = st.text_input("1. Oyuncu", "", key="init_p1")
-    p2 = st.text_input("2. Oyuncu", "", key="init_p2")
-    p3 = st.text_input("3. Oyuncu", "", key="init_p3")
-    p4 = st.text_input("4. Oyuncu", "", key="init_p4")
-    p5 = st.text_input("5. Oyuncu", "", key="init_p5")
-    
-    if st.button("Oyunu Başlat 🚀", key="start_game_btn"):
-        players_list = [p.strip() for p in [p1, p2, p3, p4, p5] if p.strip()]
-        if len(players_list) < 2:
-            st.error("Lütfen en az 2 oyuncu girin!")
-        else:
-            st.session_state.players = players_list
-            st.session_state.scores_df = pd.DataFrame(0, index=ROUNDS, columns=players_list)
-            st.session_state.initialized = True
-            
-            state_data = {
-                "initialized": True,
-                "players": players_list,
-                "completed_rounds": [],
-                "round_details": {},
-                "scores_json": st.session_state.scores_df.to_json()
-            }
-            save_to_google_sheet(state_data)
-            st.rerun()
-
-# --- AŞAMA 2: OYUN EKRANI ---
-else:
-    players = st.session_state.players
-    
-    if len(st.session_state.completed_rounds) >= len(ROUNDS):
-        st.balloons()
-        st.success("🎉 TÜM TURLAR TAMAMLANDI! 🎉")
-        totals = st.session_state.scores_df.sum()
-        winner = totals.idxmin()
-        st.subheader(f"🏆 KAZANAN: {winner} ({totals[winner]} Puan)")
-        st.dataframe(st.session_state.scores_df, use_container_width=True)
-        if st.button("Yeni Oyun Başlat 🔄", key="reset_game_end_btn"):
-            clear_google_sheet()
-            st.session_state.clear()
-            st.rerun()
-            
-    else:
-        st.subheader("🎯 Tur Detayları")
-        available_rounds = [r for r in ROUNDS if r not in st.session_state.completed_rounds]
+        <h2 style="margin-top: 20px;">✍️ Cezaları Girin</h2>
+        <div class="info-text">💡 Kutular boş gelir. Biten kişiye eksi ceza girmek için başına eksi koyun (Örn: -50).</div>
+        <div id="dynamic-inputs" class="grid-inputs"></div>
         
-        col_r1, col_r2, col_r3 = st.columns(3)
-        with col_r1:
-            selected_round = st.selectbox("Oynanan Tur", available_rounds, key="active_round_select")
-        with col_r2:
-            dealer = st.selectbox("Kağıdı Dağıtan 🃏", players, key=f"dl_{selected_round}")
-        with col_r3:
-            announcer = st.selectbox("Oyunu Biten/Söyleyen 🗣️", players, key=f"ann_{selected_round}")
+        <button onclick="saveRound()">➡️ Tur Skorlarını Kaydet</button>
+        <button class="button btn-secondary" id="undo-btn" onclick="undoLastRound()" style="display:none;">⚠️ Son Turu İptal Et / Geri Al</button>
+    </div>
+
+    <!-- 3. AŞAMA: PUAN TABLOLARI -->
+    <div id="table-screen" class="card" style="display:none;">
+        <h2>📊 Genel Ceza Puanları (Kümülatif)</h2>
+        <table id="summary-table"><thead><tr><th>Oyuncu</th><th>Bu Tur</th><th>Toplam Ceza</th></tr></thead><tbody id="summary-body"></tbody></table>
+
+        <h2 style="margin-top:30px;">📄 Yazboz Sayfasının Tamamı</h2>
+        <div class="history-wrapper">
+            <table id="history-table"><thead><tr id="history-headers"></tr></thead><tbody id="history-body"></tbody></table>
+        </div>
         
-        st.markdown("---")
-        st.subheader("✍️ Cezaları Girin")
-        st.info("💡 Tüm kutular boş gelir. İstediğiniz kutuya eksi değer girebilirsiniz (Örn: -50).")
-        
-        round_inputs = {}
-        cols = st.columns(len(players))
-        
-        for i, player in enumerate(players):
-            with cols[i]:
-                score = st.number_input(
-                    f"{player}", 
-                    min_value=-200, 
-                    max_value=500, 
-                    value=None, 
-                    step=1, 
-                    key=f"sc_{player}_{selected_round}",
-                    placeholder="Sayı"
-                )
-                round_inputs[player] = score if score is not None else 0
-                
-        st.write("")
-        if st.button(f"➡️ {selected_round} Skorlarını Kaydet", key=f"btn_{selected_round}"):
-            for player, score in round_inputs.items():
-                st.session_state.scores_df.at[selected_round, player] = score
-            
-            st.session_state.round_details[selected_round] = {
-                "Dağıtan": dealer,
-                "Söyleyen": announcer
-            }
-            st.session_state.completed_rounds.append(selected_round)
-            
-            state_data = {
-                "initialized": True,
-                "players": st.session_state.players,
-                "completed_rounds": st.session_state.completed_rounds,
-                "round_details": st.session_state.round_details,
-                "scores_json": st.session_state.scores_df.to_json()
-            }
-            save_to_google_sheet(state_data)
-            
-            st.success(f"Kaydedildi!")
-            st.rerun()
-            
-        st.markdown("---")
-        st.subheader("📊 Genel Ceza Puanları (Kümülatif)")
-        
-        current_totals = st.session_state.scores_df.sum()
-        summary_df = pd.DataFrame({
-            "Bu Tur": [round_inputs.get(p, 0) for p in players],
-            "Toplam Ceza": [current_totals[p] for p in players]
-        }, index=players)
-        
-        st.table(summary_df)
-        
-        with st.expander("📄 Yazboz Sayfasının Tamamını Gör & İndir"):
-            display_df = st.session_state.scores_df.copy()
-            
-            dealers_col = []
-            announcers_col = []
-            for r in ROUNDS:
-                if r in st.session_state.round_details:
-                    dealers_col.append(st.session_state.round_details[r]["Dağıtan"])
-                    announcers_col.append(st.session_state.round_details[r]["Söyleyen"])
-                else:
-                    dealers_col.append("-")
-                    announcers_col.append("-")
-                    
-            display_df.insert(0, "Oyunu Biten", announcers_col)
-            display_df.insert(0, "Kağıt Dağıtan", dealers_col)
-            
-            st.dataframe(display_df, use_container_width=True)
-            
-            csv_data = display_df.to_csv(index=True).encode('utf-8-sig')
-            st.download_button(
-                label="📥 Mevcut Durumu Excel/CSV Olarak İndir",
-                data=csv_data,
-                file_name="amerikan_yazboz_skor.csv",
-                mime="text/csv",
-                key="safe_download_btn"
-            )
-            
-            st.write("")
-            if st.button("🔄 Mevcut Oyunu Tamamen Sıfırla / Yeni Oyun", key="global_reset_btn"):
-                clear_google_sheet()
-                st.session_state.clear()
-                st.rerun()
-                
-            if st.session_state.completed_rounds:
-                if st.button("⚠️ En Son Girilen Turu İptal Et / Geri Al", key="global_undo_btn"):
-                    last_round = st.session_state.completed_rounds.pop()
-                    st.session_state.scores_df.loc[last_round] = 0
-                    if last_round in st.session_state.round_details:
-                        del st.session_state.round_details[last_round]
-                    
-                    state_data = {
-                        "initialized": True,
-                        "players": st.session_state.players,
-                        "completed_rounds": st.session_state.completed_rounds,
-                        "round_details": st.session_state.round_details,
-                        "scores_json": st.session_state.scores_df.to_json()
+        <button class="button btn-secondary" style="background-color:#6c757d; margin-top:30px;" onclick="resetGame()">🔄 Oyunu Tamamen Sıfırla / Yeni Oyun</button>
+    </div>
+
+    <script>
+        const ROUNDS = [
+            "1. 4'lü Küt + 3'lü Seri", "2. 3x3'lü Küt", "3. 2x3'lü Seri + 2x3'lü Küt", "4. 3-3'lü Seri",
+            "5. 2x3'lü Seri + 1x3'lü Küt", "6. 4'lü Küt", "7. 4'lü Seri", "8. 4'lü Karışık",
+            "9. 4'lü Seri + 3'lü Küt", "10. 2x4'lü Seri", "11. 2x4'lü Küt", "12. 5'li Seri",
+            "13. 6'lı Seri", "14. 5'li Seri + 3'lü Küt", "15. 4 Çift + 3'lü Seri veya Küt", "16. Elden Bitme"
+        ];
+
+        let state = {
+            initialized: false,
+            players: [],
+            completedRounds: [],
+            roundDetails: {}, // round -> {dealer, announcer}
+            scores: {} // round -> {player: score}
+        };
+
+        // TELEFONUN KENDİ HAFIZASINDAN VERİ ÇEKME (ASLA ÇÖKMEZ)
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem("dejenere_yazboz_v4");
+            if (saved) {
+                try {
+                    state = JSON.parse(saved);
+                    if (state.initialized) {
+                        renderGame();
                     }
-                    save_to_google_sheet(state_data)
-                    st.rerun()
+                } catch(e) {
+                    localStorage.removeItem("dejenere_yazboz_v4");
+                }
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem("dejenere_yazboz_v4", JSON.stringify(state));
+        }
+
+        function startGame() {
+            let names = [
+                document.getElementById("p1").value.trim(),
+                document.getElementById("p2").value.trim(),
+                document.getElementById("p3").value.trim(),
+                document.getElementById("p4").value.trim(),
+                document.getElementById("p5").value.trim()
+            ].filter(n => n !== "");
+
+            if (names.length < 2) {
+                alert("Lütfen en az 2 oyuncu ismi girin!");
+                return;
+            }
+
+            state.initialized = true;
+            state.players = names;
+            state.completedRounds = [];
+            state.roundDetails = {};
+            state.scores = {};
+            
+            ROUNDS.forEach(r => {
+                state.scores[r] = {};
+                state.players.forEach(p => { state.scores[r][p] = 0; });
+            });
+
+            saveToLocalStorage();
+            renderGame();
+        }
+
+        function renderGame() {
+            document.getElementById("setup-screen").style.display = "none";
+            document.getElementById("game-screen").style.display = "block";
+            document.getElementById("table-screen").style.display = "block";
+
+            // Kalan turları listele
+            const selectRound = document.getElementById("current-round-select");
+            selectRound.innerHTML = "";
+            let available = ROUNDS.filter(r => !state.completedRounds.includes(r));
+            
+            if (available.length === 0) {
+                document.getElementById("game-screen").innerHTML = "<h2>🎉 OYUN BİTTİ! 🎉</h2><p style='text-align:center; font-weight:bold; font-size:18px;'>Tüm turlar tamamlandı. Aşağıdaki tablodan kazananı görebilirsiniz.</p>";
+            } else {
+                available.forEach(r => {
+                    let opt = document.createElement("option");
+                    opt.value = r; opt.innerText = r;
+                    selectRound.appendChild(opt);
+                });
+            }
+
+            // Dağıtan ve Söyleyen listesi
+            const dSelect = document.getElementById("dealer-select");
+            const aSelect = document.getElementById("announcer-select");
+            dSelect.innerHTML = ""; aSelect.innerHTML = "";
+            state.players.forEach(p => {
+                let o1 = document.createElement("option"); o1.value = p; o1.innerText = p;
+                let o2 = document.createElement("option"); o2.value = p; o2.innerText = p;
+                dSelect.appendChild(o1); aSelect.appendChild(o2);
+            });
+
+            // Ceza giriş kutuları
+            const inputContainer = document.getElementById("dynamic-inputs");
+            inputContainer.innerHTML = "";
+            state.players.forEach(p => {
+                let div = document.createElement("div");
+                div.className = "score-box";
+                div.innerHTML = `<label>${p}</label><input type="number" id="input_${p}" placeholder="0">`;
+                inputContainer.appendChild(div);
+            });
+
+            // Geri al butonu görünürlüğü
+            document.getElementById("undo-btn").style.display = state.completedRounds.length > 0 ? "block" : "none";
+
+            renderTables();
+        }
+
+        function saveRound() {
+            const currentRound = document.getElementById("current-round-select").value;
+            if (!currentRound) return;
+
+            const dealer = document.getElementById("dealer-select").value;
+            const announcer = document.getElementById("announcer-select").value;
+
+            state.roundDetails[currentRound] = { dealer: dealer, announcer: announcer };
+            
+            state.players.forEach(p => {
+                let val = parseInt(document.getElementById(`input_${p}`).value);
+                state.scores[currentRound][p] = isNaN(val) ? 0 : val;
+            });
+
+            state.completedRounds.push(currentRound);
+            saveToLocalStorage();
+            renderGame();
+        }
+
+        function undoLastRound() {
+            if (state.completedRounds.length === 0) return;
+            if (confirm("En son girilen turun skorlarını silip geri almak istediğinize emin misiniz?")) {
+                let last = state.completedRounds.pop();
+                delete state.roundDetails[last];
+                state.players.forEach(p => { state.scores[last][p] = 0; });
+                saveToLocalStorage();
+                window.location.reload();
+            }
+        }
+
+        function renderTables() {
+            // Kümülatif Hesaplama
+            let totals = {};
+            state.players.forEach(p => totals[p] = 0);
+            
+            state.completedRounds.forEach(r => {
+                state.players.forEach(p => {
+                    totals[p] += (state.scores[r][p] || 0);
+                });
+            });
+
+            // Son el girenleri yakala
+            let lastRound = state.completedRounds[state.completedRounds.length - 1] || null;
+
+            // Özet Tablo
+            const summaryBody = document.getElementById("summary-body");
+            summaryBody.innerHTML = "";
+            
+            // En düşük puanı bul (Kazananı belirlemek için)
+            let minScore = Math.min(...state.players.map(p => totals[p]));
+
+            state.players.forEach(p => {
+                let thisRoundScore = lastRound ? (state.scores[lastRound][p] || 0) : 0;
+                let tr = document.createElement("tr");
+                let isWinnerBadge = (totals[p] === minScore && state.completedRounds.length > 0) ? " <span class='badge'>1.</span>" : "";
+                tr.innerHTML = `<td><strong>${p}</strong>${isWinnerBadge}</td><td>${thisRoundScore}</td><td style="font-weight:bold; color:${totals[p] > 150 ? '#E63946' : '#31333F'}">${totals[p]}</td>`;
+                summaryBody.appendChild(tr);
+            });
+
+            // Büyük Yazboz Tablosu Başlıkları
+            const hHeaders = document.getElementById("history-headers");
+            hHeaders.innerHTML = "<th>Yazboz Turları</th><th>Dağıtan</th><th>Biten</th>";
+            state.players.forEach(p => {
+                let th = document.createElement("th"); th.innerText = p;
+                hHeaders.appendChild(th);
+            });
+
+            // Büyük Yazboz Satırları
+            const historyBody = document.getElementById("history-body");
+            historyBody.innerHTML = "";
+            
+            ROUNDS.forEach(r => {
+                let tr = document.createElement("tr");
+                let isDone = state.completedRounds.includes(r);
+                
+                let dText = isDone ? state.roundDetails[r].dealer : "-";
+                let aText = isDone ? state.roundDetails[r].announcer : "-";
+                
+                let html = `<td style="text-align:left; ${isDone ? 'font-weight:600; color:#2b9348;' : ''}">${r}</td><td>${dText}</td><td>${aText}</td>`;
+                
+                state.players.forEach(p => {
+                    let scoreText = isDone ? state.scores[r][p] : "-";
+                    html += `<td>${scoreText}</td>`;
+                });
+                
+                tr.innerHTML = html;
+                historyBody.appendChild(tr);
+            });
+
+            // Genel Toplam Alt Satırı
+            let totalTr = document.createElement("tr");
+            totalTr.className = "total-row";
+            let fHtml = `<td colspan="3" style="text-align:right;">GENEL TOPLAM:</td>`;
+            state.players.forEach(p => {
+                fHtml += `<td>${totals[p]}</td>`;
+            });
+            totalTr.innerHTML = fHtml;
+            historyBody.appendChild(totalTr);
+        }
+
+        function resetGame() {
+            if (confirm("Tüm skorları silip tamamen YENİ OYUN başlatmak istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+                localStorage.removeItem("dejenere_yazboz_v4");
+                window.location.reload();
+            }
+        }
+
+        // Sayfa açıldığında hafızayı yokla
+        window.onload = loadFromLocalStorage;
+    </script>
+</body>
+</html>
+"""
+
+# HTML Motorunu Streamlit ekranına tam sayfa, dokunmatik uyumlu olarak gömüyoruz.
+components.html(HTML_ENGINE, height=1000, scrolling=True)
