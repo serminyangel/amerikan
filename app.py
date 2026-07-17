@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import requests
 
 # Sayfa Konfigürasyonu
 st.set_page_config(
@@ -8,7 +9,18 @@ st.set_page_config(
     layout="centered"
 )
 
-# Sunucu uyku moduna karşı tamamen bağışık, gücünü doğrudan telefonun tarayıcı hafızasından alan HTML5 Motoru
+API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec"
+
+# SUNUCU SEVİYESİNDE ÖN-YÜKLEME: Python veriyi CORS engeline takılmadan doğrudan Google'dan çeker
+cloud_state_json = "{}"
+try:
+    res = requests.get(API_URL, timeout=4)
+    if res.status_code == 200 and res.text.strip():
+        cloud_state_json = res.text
+except:
+    pass
+
+# Senin o taş gibi çalışan orijinal HTML5 Motorun
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -134,8 +146,12 @@ HTML_ENGINE = """
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec";
+        const API_URL = "/*API_URL_PLACEHOLDER*/";
         const ADMIN_PIN = "1905";
+        
+        // Python sunucusunun bizim için önceden çektiği canlı veri paketi
+        const CLOUD_STATE_FROM_PYTHON = /*CLOUD_STATE_PLACEHOLDER*/;
+        
         let isAdmin = localStorage.getItem("is_admin") === "true";
 
         const ROUNDS = [
@@ -153,31 +169,26 @@ HTML_ENGINE = """
             scores: {}
         };
 
+        // GÜVENLİ YAZMA MOTORU: Tarayıcı kısıtlamalarına takılmadan doğrudan metin olarak buluta basar
         function pushToCloud() {
             fetch(API_URL, {
                 method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(state)
-            }).catch(e => console.log("Bulut eşitleme hatası"));
+            }).catch(e => console.log("Eşitleme hatası"));
         }
 
+        // CANLI İZLEME MOTORU: Diğer oyuncuların ekranını 7 saniyede bir günceller
         function fetchFromCloud() {
+            if (isAdmin && state.initialized) return; 
+            
             fetch(API_URL)
                 .then(res => res.json())
                 .then(cloudState => {
-                    if (cloudState && typeof cloudState === 'object') {
+                    if (cloudState && cloudState.initialized) {
                         state = cloudState;
-                        if (state.initialized) {
-                            renderGame();
-                        } else {
-                            document.getElementById("setup-screen").style.display = "block";
-                            document.getElementById("game-screen").style.display = "none";
-                            document.getElementById("admin-login-screen").style.display = "none";
-                            document.getElementById("table-screen").style.display = "none";
-                        }
+                        renderGame();
                     }
-                }).catch(e => console.log("Canlı yayın çekilemedi"));
+                }).catch(e => console.log("Yenileme hatası"));
         }
 
         function checkAdminPIN() {
@@ -193,17 +204,22 @@ HTML_ENGINE = """
 
         function loadFromLocalStorage() {
             const saved = localStorage.getItem("dejenere_yazboz_v4");
-            if (saved) {
-                try {
-                    state = JSON.parse(saved);
-                    if (state.initialized) {
-                        renderGame();
-                    }
-                } catch(e) {
-                    localStorage.removeItem("dejenere_yazboz_v4");
+            
+            if (isAdmin) {
+                // Eğer bu cihaz yöneticiyse kendi yerel hafızasından yükler
+                if (saved) {
+                    try { state = JSON.parse(saved); } catch(e) {}
+                }
+            } else {
+                // Eğer izleyici cihazıysa (gizli sekme vs.) doğrudan Python'ın getirdiği taze bulut verisini kullanır
+                if (CLOUD_STATE_FROM_PYTHON && CLOUD_STATE_FROM_PYTHON.initialized) {
+                    state = CLOUD_STATE_FROM_PYTHON;
                 }
             }
-            fetchFromCloud();
+            
+            if (state.initialized) {
+                renderGame();
+            }
         }
 
         function saveToLocalStorage() {
@@ -257,6 +273,7 @@ HTML_ENGINE = """
             document.getElementById("table-screen").style.display = "block";
 
             const selectRound = document.getElementById("current-round-select");
+            const oldRoundVal = selectRound.value;
             selectRound.innerHTML = "";
             let available = ROUNDS.filter(r => !state.completedRounds.includes(r));
             
@@ -268,23 +285,36 @@ HTML_ENGINE = """
                     opt.value = r; opt.innerText = r;
                     selectRound.appendChild(opt);
                 });
+                if(oldRoundVal && available.includes(oldRoundVal)) {
+                    selectRound.value = oldRoundVal;
+                }
             }
 
             const dSelect = document.getElementById("dealer-select");
             const aSelect = document.getElementById("announcer-select");
+            const oldD = dSelect.value; const oldA = aSelect.value;
             dSelect.innerHTML = ""; aSelect.innerHTML = "";
             state.players.forEach(p => {
                 let o1 = document.createElement("option"); o1.value = p; o1.innerText = p;
                 let o2 = document.createElement("option"); o2.value = p; o2.innerText = p;
                 dSelect.appendChild(o1); aSelect.appendChild(o2);
             });
+            if(oldD) dSelect.value = oldD;
+            if(oldA) aSelect.value = oldA;
 
             const inputContainer = document.getElementById("dynamic-inputs");
+            const currentInputs = {};
+            state.players.forEach(p => {
+                const el = document.getElementById(`input_${p}`);
+                if(el) currentInputs[p] = el.value;
+            });
+
             inputContainer.innerHTML = "";
             state.players.forEach(p => {
                 let div = document.createElement("div");
                 div.className = "score-box";
-                div.innerHTML = `<label>${p}</label><input type="number" id="input_${p}" placeholder="0">`;
+                let savedVal = currentInputs[p] !== undefined ? currentInputs[p] : "";
+                div.innerHTML = `<label>${p}</label><input type="number" id="input_${p}" placeholder="0" value="${savedVal}">`;
                 inputContainer.appendChild(div);
             });
 
@@ -391,10 +421,9 @@ HTML_ENGINE = """
         function resetGame() {
             if (confirm("Tüm skorları silip tamamen YENİ OYUN başlatmak istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
                 localStorage.removeItem("dejenere_yazboz_v4");
+                localStorage.removeItem("is_admin");
                 fetch(API_URL, {
                     method: "POST",
-                    mode: "no-cors",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ initialized: false })
                 }).then(() => {
                     window.location.reload();
@@ -407,7 +436,7 @@ HTML_ENGINE = """
     </script>
 </body>
 </html>
-"""
+""".replace("/*API_URL_PLACEHOLDER*/", API_URL).replace("/*CLOUD_STATE_PLACEHOLDER*/", cloud_state_json)
 
-# HTML Motorunu Streamlit ekranına tam sayfa, dokunmatik uyumlu olarak gömüyoruz.
+# HTML Motorunu ekrana gömüyoruz
 components.html(HTML_ENGINE, height=1000, scrolling=True)
