@@ -11,7 +11,8 @@ st.set_page_config(
     layout="centered"
 )
 
-API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec"
+# Yeni gönderdiğin taze Google Web App URL'si
+API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec"
 
 # SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME
 cloud_state_data = {"initialized": False}
@@ -22,10 +23,10 @@ try:
 except:
     pass
 
-# Karakter ve tırnak hataları JavaScript'i çökertmesin diye veriyi Base64 zırhına alıyoruz
+# Karakter hataları JavaScript'i çökertmesin diye veriyi güvenli Base64 zırhına alıyoruz
 cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
-# Senin o taş gibi çalışan orijinal HTML5 Motorun
+# Orijinal HTML5 Motorun (Hatalı parantezler tamamen temizlendi)
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -127,7 +128,7 @@ HTML_ENGINE = """
         <button class="button btn-secondary" id="undo-btn" onclick="undoLastRound()" style="display:none;">⚠️ Son Turu İptal Et / Geri Al</button>
     </div>
 
-    <!-- YÖNTEM 2: İZLEYİCİLER İÇİN GİZLİ YÖNETİCİ GİRİŞİ -->
+    <!-- YÖNTEM 2: GİZLİ YÖNETİCİ GİRİŞİ -->
     <div id="admin-login-screen" class="card" style="display:none;">
         <h2>🔐 Skor Giriş Yetkisi</h2>
         <div class="info-text">💡 Masada sadece yönetici skor girebilir. Diğer cihazlar tabloyu canlı izler.</div>
@@ -151,7 +152,7 @@ HTML_ENGINE = """
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec";
         const ADMIN_PIN = "1905";
         let isAdmin = localStorage.getItem("is_admin") === "true";
 
@@ -170,14 +171,9 @@ HTML_ENGINE = """
             scores: {}
         };
 
-        // GÜVENLİ BULUT POST MOTORU
         function pushToCloud() {
-            fetch(API_URL, {
-                method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(state)
-            }).catch(e => console.log("Eşitleme hatası"));
+            fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify(state)))
+            .catch(e => console.log("Bulut eşitleme hatası"));
         }
 
         function fetchFromCloud() {
@@ -212,7 +208,6 @@ HTML_ENGINE = """
                     try { state = JSON.parse(saved); } catch(e) {}
                 }
             } else {
-                // Güvenli zırhtan veriyi çözüyoruz (Türkçe karakter korumalı)
                 try {
                     let cloudStateRaw = decodeURIComponent(escape(window.atob("/*CLOUD_STATE_B64*/")));
                     let parsedCloud = JSON.parse(cloudStateRaw);
@@ -271,7 +266,6 @@ HTML_ENGINE = """
                 document.getElementById("game-screen").style.display = "block";
                 document.getElementById("admin-login-screen").style.display = "none";
             } else {
-                document.getElementById("game-screen").style.display = "block"; // İzleyici de büyük tabloyu görsün diye açık kalmalı
                 document.getElementById("game-screen").style.display = "none";
                 document.getElementById("admin-login-screen").style.display = "block";
             }
@@ -284,7 +278,7 @@ HTML_ENGINE = """
             let available = ROUNDS.filter(r => !state.completedRounds.includes(r));
             
             if (available.length === 0) {
-                document.getElementById("game-screen").innerHTML = "<h2>🎉 OYUN BİTTİ! 🎉</h2><p style='text-align:center; font-weight:bold; font-size:18px;'>Tüm turlar tamamlandı. Aşağıdaki tablodan kazananı görebilirsiniz.</p>";
+                document.getElementById("game-screen").innerHTML = "<h2>🎉 OYUN BITTI! 🎉</h2><p style='text-align:center; font-weight:bold; font-size:18px;'>Tüm turlar tamamlandı. Aşağıdaki tablodan kazananı görebilirsiniz.</p>";
             } else {
                 available.forEach(r => {
                     let opt = document.createElement("option");
@@ -428,11 +422,8 @@ HTML_ENGINE = """
             if (confirm("Tüm skorları silip tamamen YENİ OYUN başlatmak istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
                 localStorage.removeItem("dejenere_yazboz_v4");
                 localStorage.removeItem("is_admin");
-                fetch(API_URL, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ initialized: false })
-                }).then(() => {
+                fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify({ initialized: false })))
+                .then(() => {
                     window.location.reload();
                 });
             }
