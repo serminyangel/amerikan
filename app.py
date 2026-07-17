@@ -1,6 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
+import json
+import base64
 
 # Sayfa Konfigürasyonu
 st.set_page_config(
@@ -11,14 +13,17 @@ st.set_page_config(
 
 API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec"
 
-# SUNUCU SEVİYESİNDE ÖN-YÜKLEME: Python veriyi CORS engeline takılmadan doğrudan Google'dan çeker
-cloud_state_json = "{}"
+# SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME
+cloud_state_data = {"initialized": False}
 try:
     res = requests.get(API_URL, timeout=4)
-    if res.status_code == 200 and res.text.strip():
-        cloud_state_json = res.text
+    if res.status_code == 200:
+        cloud_state_data = res.json()
 except:
     pass
+
+# Karakter ve tırnak hataları JavaScript'i çökertmesin diye veriyi Base64 zırhına alıyoruz
+cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
 # Senin o taş gibi çalışan orijinal HTML5 Motorun
 HTML_ENGINE = """
@@ -146,12 +151,8 @@ HTML_ENGINE = """
     </div>
 
     <script>
-        const API_URL = "/*API_URL_PLACEHOLDER*/";
+        const API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec";
         const ADMIN_PIN = "1905";
-        
-        // Python sunucusunun bizim için önceden çektiği canlı veri paketi
-        const CLOUD_STATE_FROM_PYTHON = /*CLOUD_STATE_PLACEHOLDER*/;
-        
         let isAdmin = localStorage.getItem("is_admin") === "true";
 
         const ROUNDS = [
@@ -169,22 +170,23 @@ HTML_ENGINE = """
             scores: {}
         };
 
-        // GÜVENLİ YAZMA MOTORU: Tarayıcı kısıtlamalarına takılmadan doğrudan metin olarak buluta basar
+        // GÜVENLİ BULUT POST MOTORU
         function pushToCloud() {
             fetch(API_URL, {
                 method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(state)
             }).catch(e => console.log("Eşitleme hatası"));
         }
 
-        // CANLI İZLEME MOTORU: Diğer oyuncuların ekranını 7 saniyede bir günceller
         function fetchFromCloud() {
             if (isAdmin && state.initialized) return; 
             
             fetch(API_URL)
                 .then(res => res.json())
                 .then(cloudState => {
-                    if (cloudState && cloudState.initialized) {
+                    if (cloudState && typeof cloudState === 'object' && cloudState.initialized) {
                         state = cloudState;
                         renderGame();
                     }
@@ -206,15 +208,18 @@ HTML_ENGINE = """
             const saved = localStorage.getItem("dejenere_yazboz_v4");
             
             if (isAdmin) {
-                // Eğer bu cihaz yöneticiyse kendi yerel hafızasından yükler
                 if (saved) {
                     try { state = JSON.parse(saved); } catch(e) {}
                 }
             } else {
-                // Eğer izleyici cihazıysa (gizli sekme vs.) doğrudan Python'ın getirdiği taze bulut verisini kullanır
-                if (CLOUD_STATE_FROM_PYTHON && CLOUD_STATE_FROM_PYTHON.initialized) {
-                    state = CLOUD_STATE_FROM_PYTHON;
-                }
+                // Güvenli zırhtan veriyi çözüyoruz (Türkçe karakter korumalı)
+                try {
+                    let cloudStateRaw = decodeURIComponent(escape(window.atob("/*CLOUD_STATE_B64*/")));
+                    let parsedCloud = JSON.parse(cloudStateRaw);
+                    if (parsedCloud && parsedCloud.initialized) {
+                        state = parsedCloud;
+                    }
+                } catch(e) {}
             }
             
             if (state.initialized) {
@@ -266,6 +271,7 @@ HTML_ENGINE = """
                 document.getElementById("game-screen").style.display = "block";
                 document.getElementById("admin-login-screen").style.display = "none";
             } else {
+                document.getElementById("game-screen").style.display = "block"; // İzleyici de büyük tabloyu görsün diye açık kalmalı
                 document.getElementById("game-screen").style.display = "none";
                 document.getElementById("admin-login-screen").style.display = "block";
             }
@@ -424,6 +430,7 @@ HTML_ENGINE = """
                 localStorage.removeItem("is_admin");
                 fetch(API_URL, {
                     method: "POST",
+                    mode: "no-cors",
                     body: JSON.stringify({ initialized: false })
                 }).then(() => {
                     window.location.reload();
@@ -436,7 +443,7 @@ HTML_ENGINE = """
     </script>
 </body>
 </html>
-""".replace("/*API_URL_PLACEHOLDER*/", API_URL).replace("/*CLOUD_STATE_PLACEHOLDER*/", cloud_state_json)
+""".replace("/*CLOUD_STATE_B64*/", cloud_b64)
 
 # HTML Motorunu ekrana gömüyoruz
 components.html(HTML_ENGINE, height=1000, scrolling=True)
