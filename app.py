@@ -134,7 +134,6 @@ HTML_ENGINE = """
     </div>
 
     <script>
-        // Söküp aldığımız o asıl canlı Google Sheets bağlantısı
         const API_URL = "https://script.google.com/macros/s/AKfycbxZp2bpoN25mqjukeUehUcovMbeBi9nfEK2z4AsrqusFNOXsdWbRt1xkbG8V5zBZjBv/exec";
         const ADMIN_PIN = "1905";
         let isAdmin = localStorage.getItem("is_admin") === "true";
@@ -150,11 +149,10 @@ HTML_ENGINE = """
             initialized: false,
             players: [],
             completedRounds: [],
-            roundDetails: {}, // round -> {dealer, announcer}
-            scores: {} // round -> {player: score}
+            roundDetails: {},
+            scores: {}
         };
 
-        // GOOGLE SHEETS BULUT ENTEGRASYONU (Arka planda çalışır, yereli engellemez)
         function pushToCloud() {
             fetch(API_URL, {
                 method: "POST",
@@ -169,13 +167,11 @@ HTML_ENGINE = """
                 .then(res => res.json())
                 .then(cloudState => {
                     if (cloudState && typeof cloudState === 'object') {
-                        // Eğer bulutta aktif bir oyun varsa yerel durumu onunla güncelle (İzleyiciler için)
                         state = cloudState;
                         if (state.initialized) {
                             renderGame();
                         } else {
-                            // Bulut sıfırlanmışsa herkesi ilk ekrana at
-                            document.getElementById("setup-screen").style.style.display = "block";
+                            document.getElementById("setup-screen").style.display = "block";
                             document.getElementById("game-screen").style.display = "none";
                             document.getElementById("admin-login-screen").style.display = "none";
                             document.getElementById("table-screen").style.display = "none";
@@ -195,7 +191,6 @@ HTML_ENGINE = """
             }
         }
 
-        // TELEFONUN KENDİ HAFIZASINDAN VERİ ÇEKME (ASLA ÇÖKMEZ)
         function loadFromLocalStorage() {
             const saved = localStorage.getItem("dejenere_yazboz_v4");
             if (saved) {
@@ -208,7 +203,6 @@ HTML_ENGINE = """
                     localStorage.removeItem("dejenere_yazboz_v4");
                 }
             }
-            // Sayfa açıldığında hemen buluttaki en taze veriyi de kontrol et
             fetchFromCloud();
         }
 
@@ -231,7 +225,7 @@ HTML_ENGINE = """
             }
 
             state.initialized = true;
-            isAdmin = true; // Oyunu kuran cihaz otomatik yöneticidir
+            isAdmin = true; 
             localStorage.setItem("is_admin", "true");
 
             state.players = names;
@@ -245,14 +239,13 @@ HTML_ENGINE = """
             });
 
             saveToLocalStorage();
-            pushToCloud(); // Buluta gönder
+            pushToCloud();
             renderGame();
         }
 
         function renderGame() {
             document.getElementById("setup-screen").style.display = "none";
             
-            // YÖNTEM 2 KONTROLÜ: Yönetici mi izleyici mi?
             if (isAdmin) {
                 document.getElementById("game-screen").style.display = "block";
                 document.getElementById("admin-login-screen").style.display = "none";
@@ -263,7 +256,6 @@ HTML_ENGINE = """
             
             document.getElementById("table-screen").style.display = "block";
 
-            // Kalan turları listele
             const selectRound = document.getElementById("current-round-select");
             selectRound.innerHTML = "";
             let available = ROUNDS.filter(r => !state.completedRounds.includes(r));
@@ -278,7 +270,6 @@ HTML_ENGINE = """
                 });
             }
 
-            // Dağıtan ve Söyleyen listesi
             const dSelect = document.getElementById("dealer-select");
             const aSelect = document.getElementById("announcer-select");
             dSelect.innerHTML = ""; aSelect.innerHTML = "";
@@ -288,7 +279,6 @@ HTML_ENGINE = """
                 dSelect.appendChild(o1); aSelect.appendChild(o2);
             });
 
-            // Ceza giriş kutuları
             const inputContainer = document.getElementById("dynamic-inputs");
             inputContainer.innerHTML = "";
             state.players.forEach(p => {
@@ -298,7 +288,6 @@ HTML_ENGINE = """
                 inputContainer.appendChild(div);
             });
 
-            // Geri al butonu görünürlüğü
             document.getElementById("undo-btn").style.display = state.completedRounds.length > 0 ? "block" : "none";
 
             renderTables();
@@ -320,7 +309,7 @@ HTML_ENGINE = """
 
             state.completedRounds.push(currentRound);
             saveToLocalStorage();
-            pushToCloud(); // Buluta gönder
+            pushToCloud();
             renderGame();
         }
 
@@ -331,13 +320,12 @@ HTML_ENGINE = """
                 delete state.roundDetails[last];
                 state.players.forEach(p => { state.scores[last][p] = 0; });
                 saveToLocalStorage();
-                pushToCloud(); // Buluttan da geri al
+                pushToCloud();
                 window.location.reload();
             }
         }
 
         function renderTables() {
-            // Kümülatif Hesaplama
             let totals = {};
             state.players.forEach(p => totals[p] = 0);
             
@@ -347,14 +335,11 @@ HTML_ENGINE = """
                 });
             });
 
-            // Son el girenleri yakala
             let lastRound = state.completedRounds[state.completedRounds.length - 1] || null;
 
-            // Özet Tablo
             const summaryBody = document.getElementById("summary-body");
             summaryBody.innerHTML = "";
             
-            // En düşük puanı bul (Kazananı belirlemek için)
             let minScore = Math.min(...state.players.map(p => totals[p]));
 
             state.players.forEach(p => {
@@ -365,7 +350,6 @@ HTML_ENGINE = """
                 summaryBody.appendChild(tr);
             });
 
-            // Büyük Yazboz Tablosu Başlıkları
             const hHeaders = document.getElementById("history-headers");
             hHeaders.innerHTML = "<th>Yazboz Turları</th><th>Dağıtan</th><th>Biten</th>";
             state.players.forEach(p => {
@@ -373,7 +357,6 @@ HTML_ENGINE = """
                 hHeaders.appendChild(th);
             });
 
-            // Büyük Yazboz Satırları
             const historyBody = document.getElementById("history-body");
             historyBody.innerHTML = "";
             
@@ -395,7 +378,6 @@ HTML_ENGINE = """
                 historyBody.appendChild(tr);
             });
 
-            // Genel Toplam Alt Satırı
             let totalTr = document.createElement("tr");
             totalTr.className = "total-row";
             let fHtml = `<td colspan="3" style="text-align:right;">GENEL TOPLAM:</td>`;
@@ -409,7 +391,6 @@ HTML_ENGINE = """
         function resetGame() {
             if (confirm("Tüm skorları silip tamamen YENİ OYUN başlatmak istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
                 localStorage.removeItem("dejenere_yazboz_v4");
-                // Bulutu da temizle
                 fetch(API_URL, {
                     method: "POST",
                     mode: "no-cors",
@@ -421,10 +402,7 @@ HTML_ENGINE = """
             }
         }
 
-        // Sayfa açıldığında hafızayı yokla
         window.onload = loadFromLocalStorage;
-
-        // İzleyen diğer oyuncuların ekranı her 7 saniyede bir otomatik canlansın
         setInterval(fetchFromCloud, 7000);
     </script>
 </body>
