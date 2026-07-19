@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import requests
 import json
 import base64
+import time
 
 # Sayfa Konfigürasyonu
 st.set_page_config(
@@ -14,19 +15,19 @@ st.set_page_config(
 # Canlı Google Web App URL'si
 API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec"
 
-# SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME
+# SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME (Önbellek Kırıcı Zaman Damgası İle)
 cloud_state_data = {"initialized": False}
 try:
-    res = requests.get(API_URL, timeout=4)
+    res = requests.get(f"{API_URL}?t={int(time.time())}", timeout=4)
     if res.status_code == 200:
         cloud_state_data = res.json()
 except:
     pass
 
-# Karakter hataları JavaScript'i çökertmesin diye veriyi güvenli Base64 zırhına alıyoruz
+# Veriyi güvenli Base64 zırhına alıyoruz
 cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
-# Orijinal HTML5 Motoru (Sıfırlama Mantığı ve Ekran Bütünlüğü Onarıldı)
+# Orijinal HTML5 Motoru (Sıfırlama ve Önbellek Yönetimi Onarıldı)
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -174,7 +175,6 @@ HTML_ENGINE = """
         const API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec";
         const ADMIN_PIN = "1905";
         let isAdmin = localStorage.getItem("is_admin") === "true";
-        let initialGameScreenHTML = "";
 
         const ROUNDS = [
             "1. 4'lü Küt + 3'lü Seri", "2. 3x3'lü Küt", "3. 2x3'lü Seri + 2x3'lü Küt", "4. 3-3'lü Seri",
@@ -192,20 +192,23 @@ HTML_ENGINE = """
         };
 
         function pushToCloud() {
-            fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify(state)))
+            fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify(state)) + "&t=" + new Date().getTime())
             .catch(e => console.log("Bulut eşitleme hatası"));
         }
 
         function fetchFromCloud() {
             if (isAdmin && state.initialized) return; 
-            if (sessionStorage.getItem("user_reset") === "true") return;
             
-            fetch(API_URL)
+            fetch(API_URL + "?t=" + new Date().getTime())
                 .then(res => res.json())
                 .then(cloudState => {
-                    if (cloudState && typeof cloudState === 'object' && cloudState.initialized) {
-                        state = cloudState;
-                        renderGame();
+                    if (cloudState && typeof cloudState === 'object') {
+                        if (cloudState.initialized) {
+                            state = cloudState;
+                            renderGame();
+                        } else if (state.initialized) {
+                            location.reload();
+                        }
                     }
                 }).catch(e => console.log("Yenileme hatası"));
         }
@@ -222,21 +225,18 @@ HTML_ENGINE = """
         }
 
         function loadFromLocalStorage() {
-            if (!initialGameScreenHTML) {
-                initialGameScreenHTML = document.getElementById("game-screen").innerHTML;
-            }
-
-            if (sessionStorage.getItem("user_reset") === "true") {
-                return;
-            }
-
             const saved = localStorage.getItem("dejenere_yazboz_v4");
             
-            if (isAdmin) {
-                if (saved) {
-                    try { state = JSON.parse(saved); } catch(e) {}
-                }
-            } else {
+            if (saved) {
+                try { 
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.initialized) {
+                        state = parsed;
+                    }
+                } catch(e) {}
+            }
+            
+            if (!state.initialized) {
                 try {
                     let cloudStateRaw = decodeURIComponent(escape(window.atob("/*CLOUD_STATE_B64*/")));
                     let parsedCloud = JSON.parse(cloudStateRaw);
@@ -248,6 +248,11 @@ HTML_ENGINE = """
             
             if (state.initialized) {
                 renderGame();
+            } else {
+                document.getElementById("setup-screen").style.display = "block";
+                document.getElementById("game-screen").style.display = "none";
+                document.getElementById("admin-login-screen").style.display = "none";
+                document.getElementById("table-screen").style.display = "none";
             }
         }
 
@@ -256,7 +261,6 @@ HTML_ENGINE = """
         }
 
         function startGame() {
-            sessionStorage.removeItem("user_reset");
             let names = [
                 document.getElementById("p1").value.trim(),
                 document.getElementById("p2").value.trim(),
@@ -327,10 +331,6 @@ HTML_ENGINE = """
                     </div>
                 `;
             } else {
-                if (!document.getElementById("current-round-select") && initialGameScreenHTML) {
-                    document.getElementById("game-screen").innerHTML = initialGameScreenHTML;
-                }
-
                 const selectRound = document.getElementById("current-round-select");
                 if (selectRound) {
                     const oldRoundVal = selectRound.value;
@@ -562,9 +562,8 @@ HTML_ENGINE = """
 
         function resetGame() {
             if (confirm("Tüm skorları silip tamamen YENİ OYUN başlatmak istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
-                localStorage.removeItem("dejenere_yazboz_v4");
-                localStorage.removeItem("is_admin");
-                sessionStorage.setItem("user_reset", "true");
+                localStorage.clear();
+                sessionStorage.clear();
 
                 state = {
                     initialized: false,
@@ -574,20 +573,14 @@ HTML_ENGINE = """
                     scores: {}
                 };
 
-                fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify({ initialized: false })))
+                fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify({ initialized: false })) + "&t=" + new Date().getTime())
                 .then(() => {
-                    if (initialGameScreenHTML) {
-                        document.getElementById("game-screen").innerHTML = initialGameScreenHTML;
-                    }
-                    document.getElementById("setup-screen").style.display = "block";
-                    document.getElementById("game-screen").style.display = "none";
-                    document.getElementById("admin-login-screen").style.display = "none";
-                    document.getElementById("table-screen").style.display = "none";
-
-                    ["p1","p2","p3","p4","p5"].forEach(id => {
-                        let el = document.getElementById(id);
-                        if(el) el.value = "";
-                    });
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                })
+                .catch(() => {
+                    window.location.reload();
                 });
             }
         }
@@ -601,4 +594,3 @@ HTML_ENGINE = """
 
 # HTML Motorunu ekrana gömüyoruz
 components.html(HTML_ENGINE, height=1000, scrolling=True)
-    
