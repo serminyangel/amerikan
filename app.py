@@ -26,7 +26,7 @@ except:
 # Karakter hataları JavaScript'i çökertmesin diye veriyi güvenli Base64 zırhına alıyoruz
 cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
-# Orijinal HTML5 Motoru (Skor Sonrası Kutuları Otomatik Temizleme Özelliği Eklendi)
+# Orijinal HTML5 Motoru (Sıfırlama Mantığı ve Ekran Bütünlüğü Onarıldı)
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -174,6 +174,7 @@ HTML_ENGINE = """
         const API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec";
         const ADMIN_PIN = "1905";
         let isAdmin = localStorage.getItem("is_admin") === "true";
+        let initialGameScreenHTML = "";
 
         const ROUNDS = [
             "1. 4'lü Küt + 3'lü Seri", "2. 3x3'lü Küt", "3. 2x3'lü Seri + 2x3'lü Küt", "4. 3-3'lü Seri",
@@ -197,6 +198,7 @@ HTML_ENGINE = """
 
         function fetchFromCloud() {
             if (isAdmin && state.initialized) return; 
+            if (sessionStorage.getItem("user_reset") === "true") return;
             
             fetch(API_URL)
                 .then(res => res.json())
@@ -220,6 +222,14 @@ HTML_ENGINE = """
         }
 
         function loadFromLocalStorage() {
+            if (!initialGameScreenHTML) {
+                initialGameScreenHTML = document.getElementById("game-screen").innerHTML;
+            }
+
+            if (sessionStorage.getItem("user_reset") === "true") {
+                return;
+            }
+
             const saved = localStorage.getItem("dejenere_yazboz_v4");
             
             if (isAdmin) {
@@ -246,6 +256,7 @@ HTML_ENGINE = """
         }
 
         function startGame() {
+            sessionStorage.removeItem("user_reset");
             let names = [
                 document.getElementById("p1").value.trim(),
                 document.getElementById("p2").value.trim(),
@@ -316,6 +327,10 @@ HTML_ENGINE = """
                     </div>
                 `;
             } else {
+                if (!document.getElementById("current-round-select") && initialGameScreenHTML) {
+                    document.getElementById("game-screen").innerHTML = initialGameScreenHTML;
+                }
+
                 const selectRound = document.getElementById("current-round-select");
                 if (selectRound) {
                     const oldRoundVal = selectRound.value;
@@ -467,7 +482,7 @@ HTML_ENGINE = """
             state.completedRounds.push(currentRound);
             saveToLocalStorage();
             pushToCloud();
-            renderGame(true); // KUTULARI SIFIRLAYARAK YENİDEN ÇİZ
+            renderGame(true);
         }
 
         function undoLastRound() {
@@ -549,9 +564,30 @@ HTML_ENGINE = """
             if (confirm("Tüm skorları silip tamamen YENİ OYUN başlatmak istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
                 localStorage.removeItem("dejenere_yazboz_v4");
                 localStorage.removeItem("is_admin");
+                sessionStorage.setItem("user_reset", "true");
+
+                state = {
+                    initialized: false,
+                    players: [],
+                    completedRounds: [],
+                    roundDetails: {},
+                    scores: {}
+                };
+
                 fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify({ initialized: false })))
                 .then(() => {
-                    window.location.reload();
+                    if (initialGameScreenHTML) {
+                        document.getElementById("game-screen").innerHTML = initialGameScreenHTML;
+                    }
+                    document.getElementById("setup-screen").style.display = "block";
+                    document.getElementById("game-screen").style.display = "none";
+                    document.getElementById("admin-login-screen").style.display = "none";
+                    document.getElementById("table-screen").style.display = "none";
+
+                    ["p1","p2","p3","p4","p5"].forEach(id => {
+                        let el = document.getElementById(id);
+                        if(el) el.value = "";
+                    });
                 });
             }
         }
@@ -565,3 +601,4 @@ HTML_ENGINE = """
 
 # HTML Motorunu ekrana gömüyoruz
 components.html(HTML_ENGINE, height=1000, scrolling=True)
+    
