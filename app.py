@@ -12,10 +12,10 @@ st.set_page_config(
     layout="centered"
 )
 
-# Canlı Google Web App URL'si
-API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec"
+# Yeni gönderdiğin taze ve "Herkes" erişimli Google Web App URL'si
+API_URL = "https://script.google.com/macros/s/AKfycbyxmpjUVXvqMtF_qzqntxOasqZWQNcvrXC-PW8WYW-EwqS2ZexDzwiLfcLMl8hX-th1/exec"
 
-# SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME
+# SUNUCU SEVİYESİNDE ÖN-YÜKLEME
 cloud_state_data = {"initialized": False}
 try:
     res = requests.get(f"{API_URL}?t={int(time.time())}", timeout=4)
@@ -27,7 +27,7 @@ except:
 # Veriyi güvenli Base64 zırhına alıyoruz
 cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
-# Orijinal HTML5 Motoru (Belirgin İzleyici Bildirimi Eklendi)
+# HTML5 Motoru
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -166,7 +166,7 @@ HTML_ENGINE = """
         </div>
     </div>
 
-    <!-- 3. AŞAMA: İZLEYİCİ BİLDİRİM VE YÖNETİCİ GİRİŞİ -->
+    <!-- 3. AŞAMA: İZLEYİCİ BİLDİRİMİ -->
     <div id="admin-login-screen" class="spectator-card" style="display:none;">
         <span class="spectator-badge">🟢 CANLI İZLEYİCİ MODU</span>
         <h3 style="margin: 5px 0 10px 0; color:#1b5e20; font-size:16px;">👁️ Masa Skorları Canlı Yayınlanıyor</h3>
@@ -174,7 +174,6 @@ HTML_ENGINE = """
             Masayı canlı izliyorsunuz. Skor girişini masa yöneticisi yapar, puanlar ekranınıza otomatik düşer.
         </p>
 
-        <!-- YÖNETİCİ GİRİŞ BUTONU VE GİZLİ FORMU -->
         <button onclick="toggleAdminForm()" style="background-color:#5c6bc0; font-size:13px; padding:8px;">🔑 Masa Yöneticisi misiniz? (PIN Girin)</button>
         
         <div id="admin-form-box" style="display:none; margin-top:15px; text-align:left; background:white; padding:12px; border-radius:8px; border:1px solid #ced4da;">
@@ -200,7 +199,7 @@ HTML_ENGINE = """
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbyxmpjUVXvqMtF_qzqntxOasqZWQNcvrXC-PW8WYW-EwqS2ZexDzwiLfcLMl8hX-th1/exec";
         const ADMIN_PIN = "1905";
         let isAdmin = localStorage.getItem("is_admin") === "true";
 
