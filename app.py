@@ -15,7 +15,7 @@ st.set_page_config(
 # Canlı Google Web App URL'si
 API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec"
 
-# SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME (Önbellek Kırıcı Zaman Damgası İle)
+# SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME
 cloud_state_data = {"initialized": False}
 try:
     res = requests.get(f"{API_URL}?t={int(time.time())}", timeout=4)
@@ -27,7 +27,7 @@ except:
 # Veriyi güvenli Base64 zırhına alıyoruz
 cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
-# Orijinal HTML5 Motoru (Sıfırlama ve Önbellek Yönetimi Onarıldı)
+# Orijinal HTML5 Motoru (Belirgin İzleyici Bildirimi Eklendi)
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -51,6 +51,24 @@ HTML_ENGINE = """
             border-radius: 12px;
             padding: 16px;
             margin-bottom: 20px;
+        }
+        .spectator-card {
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .spectator-badge {
+            background: #2e7d32;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 8px;
         }
         h2 { font-size: 18px; margin-top: 0; color: #495057; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; }
         .form-group { margin-bottom: 15px; }
@@ -77,7 +95,6 @@ HTML_ENGINE = """
         .btn-secondary:hover { background-color: #5a6268; }
         .btn-success { background-color: #2b9348; }
         .btn-success:hover { background-color: #217338; }
-        .btn-danger { background-color: #6c757d; font-size: 12px; padding: 6px; width: auto; float: right; margin-top: -32px; border-radius: 4px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
         th, td { border: 1px solid #dee2e6; padding: 10px; text-align: center; }
         th { background-color: #f1f3f5; font-weight: 600; }
@@ -105,7 +122,7 @@ HTML_ENGINE = """
         <button onclick="startGame()">Oyunu Başlat 🚀</button>
     </div>
 
-    <!-- 2. AŞAMA: OYUN EKRANI -->
+    <!-- 2. AŞAMA: YÖNETİCİ OYUN EKRANI -->
     <div id="game-screen" class="card" style="display:none;">
         <h2>🎯 Tur Detayları</h2>
         <div class="form-group">
@@ -129,6 +146,7 @@ HTML_ENGINE = """
         
         <button onclick="saveRound()">➡️ Tur Skorlarını Kaydet</button>
         <button class="button btn-secondary" id="undo-btn" onclick="undoLastRound()" style="display:none;">⚠️ Son Turu İptal Et / Geri Al</button>
+        <button class="button btn-secondary" onclick="logoutAdmin()" style="background-color:#495057; margin-top:10px;">🔒 Bu Cihazda İzleyici Moduna Geç</button>
 
         <!-- GEÇMİŞ TUR SKORUNU DÜZELTME ALANI -->
         <div id="edit-round-area" style="margin-top:25px; border-top: 2px dashed #ced4da; padding-top: 15px; display:none;">
@@ -148,17 +166,27 @@ HTML_ENGINE = """
         </div>
     </div>
 
-    <!-- YÖNTEM 2: GİZLİ YÖNETİCİ GİRİŞİ -->
-    <div id="admin-login-screen" class="card" style="display:none;">
-        <h2>🔐 Skor Giriş Yetkisi</h2>
-        <div class="info-text">💡 Masada sadece yönetici skor girebilir. Diğer cihazlar tabloyu canlı izler.</div>
-        <div class="form-group">
-            <input type="password" id="admin-pin" placeholder="Yönetici PIN Kodu Girin">
+    <!-- 3. AŞAMA: İZLEYİCİ BİLDİRİM VE YÖNETİCİ GİRİŞİ -->
+    <div id="admin-login-screen" class="spectator-card" style="display:none;">
+        <span class="spectator-badge">🟢 CANLI İZLEYİCİ MODU</span>
+        <h3 style="margin: 5px 0 10px 0; color:#1b5e20; font-size:16px;">👁️ Masa Skorları Canlı Yayınlanıyor</h3>
+        <p style="font-size:13px; color:#2e7d32; margin: 0 0 15px 0;">
+            Masayı canlı izliyorsunuz. Skor girişini masa yöneticisi yapar, puanlar ekranınıza otomatik düşer.
+        </p>
+
+        <!-- YÖNETİCİ GİRİŞ BUTONU VE GİZLİ FORMU -->
+        <button onclick="toggleAdminForm()" style="background-color:#5c6bc0; font-size:13px; padding:8px;">🔑 Masa Yöneticisi misiniz? (PIN Girin)</button>
+        
+        <div id="admin-form-box" style="display:none; margin-top:15px; text-align:left; background:white; padding:12px; border-radius:8px; border:1px solid #ced4da;">
+            <div class="form-group" style="margin-bottom:8px;">
+                <label style="font-size:12px;">Yönetici PIN Kodu</label>
+                <input type="password" id="admin-pin" placeholder="PIN Kodu">
+            </div>
+            <button onclick="checkAdminPIN()" style="font-size:13px; padding:8px;">Paneli Aç 🔓</button>
         </div>
-        <button onclick="checkAdminPIN()">Paneli Aç 🔓</button>
     </div>
 
-    <!-- 3. AŞAMA: PUAN TABLOLARI -->
+    <!-- 4. AŞAMA: PUAN TABLOLARI -->
     <div id="table-screen" class="card" style="display:none;">
         <h2>📊 Genel Ceza Puanları (Kümülatif)</h2>
         <table id="summary-table"><thead><tr><th>Oyuncu</th><th>Bu Tur</th><th>Toplam Ceza</th></tr></thead><tbody id="summary-body"></tbody></table>
@@ -191,22 +219,32 @@ HTML_ENGINE = """
             scores: {}
         };
 
+        function toggleAdminForm() {
+            const box = document.getElementById("admin-form-box");
+            box.style.display = box.style.display === "none" ? "block" : "none";
+        }
+
         function pushToCloud() {
             fetch(API_URL + "?puanla=" + encodeURIComponent(JSON.stringify(state)) + "&t=" + new Date().getTime())
             .catch(e => console.log("Bulut eşitleme hatası"));
         }
 
         function fetchFromCloud() {
-            if (isAdmin && state.initialized) return; 
-            
             fetch(API_URL + "?t=" + new Date().getTime())
                 .then(res => res.json())
                 .then(cloudState => {
                     if (cloudState && typeof cloudState === 'object') {
                         if (cloudState.initialized) {
-                            state = cloudState;
-                            renderGame();
+                            const cloudCount = cloudState.completedRounds ? cloudState.completedRounds.length : 0;
+                            const localCount = state.completedRounds ? state.completedRounds.length : 0;
+                            
+                            if (!state.initialized || !isAdmin || cloudCount !== localCount) {
+                                state = cloudState;
+                                saveToLocalStorage();
+                                renderGame(true);
+                            }
                         } else if (state.initialized) {
+                            localStorage.removeItem("dejenere_yazboz_v4");
                             location.reload();
                         }
                     }
@@ -220,8 +258,14 @@ HTML_ENGINE = """
                 localStorage.setItem("is_admin", "true");
                 renderGame();
             } else {
-                alert("Hatalı PIN Kodu! Masada sadece yönetici skor girebilir.");
+                alert("Hatalı PIN Kodu!");
             }
+        }
+
+        function logoutAdmin() {
+            isAdmin = false;
+            localStorage.removeItem("is_admin");
+            renderGame();
         }
 
         function loadFromLocalStorage() {
@@ -313,6 +357,7 @@ HTML_ENGINE = """
                     <h2>🎉 OYUN BİTTİ! 🎉</h2>
                     <p style='text-align:center; font-weight:bold; font-size:16px; margin: 15px 0;'>16 turun tamamı oynandı. Kazananı aşağıdaki kümülatif tablodan görebilirsiniz.</p>
                     <button class="button btn-secondary" id="undo-btn" onclick="undoLastRound()">⚠️ Son Turu (16. Tur) İptal Et / Geri Al</button>
+                    <button class="button btn-secondary" onclick="logoutAdmin()" style="background-color:#495057; margin-top:10px;">🔒 Bu Cihazda İzleyici Moduna Geç</button>
                     
                     <div id="edit-round-area" style="margin-top:25px; border-top: 2px dashed #ced4da; padding-top: 15px;">
                         <h2 style="font-size:16px; color:#2b9348;">✏️ Geçmiş Tur Skorunu Düzelt</h2>
