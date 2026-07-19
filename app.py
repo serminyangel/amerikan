@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Yeni gönderdiğin taze Google Web App URL'si
+# Canlı Google Web App URL'si
 API_URL = "https://script.google.com/macros/s/AKfycbxZi0_AxQF2GeH3tIObLqP-rKtE1xkA8ROZcpAirBE_9j2IC5oqwtsP7vv5vJi19q_2/exec"
 
 # SUNUCU SEVİYESİNDE GÜVENLİ ÖN-YÜKLEME
@@ -26,7 +26,7 @@ except:
 # Karakter hataları JavaScript'i çökertmesin diye veriyi güvenli Base64 zırhına alıyoruz
 cloud_b64 = base64.b64encode(json.dumps(cloud_state_data).encode('utf-8')).decode('utf-8')
 
-# Orijinal HTML5 Motorun (Hatalı parantezler tamamen temizlendi)
+# Orijinal HTML5 Motoru (Skor Sonrası Kutuları Otomatik Temizleme Özelliği Eklendi)
 HTML_ENGINE = """
 <!DOCTYPE html>
 <html>
@@ -74,6 +74,8 @@ HTML_ENGINE = """
         button:hover { background-color: #cb323f; }
         .btn-secondary { background-color: #6C757D; margin-top: 10px; }
         .btn-secondary:hover { background-color: #5a6268; }
+        .btn-success { background-color: #2b9348; }
+        .btn-success:hover { background-color: #217338; }
         .btn-danger { background-color: #6c757d; font-size: 12px; padding: 6px; width: auto; float: right; margin-top: -32px; border-radius: 4px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
         th, td { border: 1px solid #dee2e6; padding: 10px; text-align: center; }
@@ -126,6 +128,23 @@ HTML_ENGINE = """
         
         <button onclick="saveRound()">➡️ Tur Skorlarını Kaydet</button>
         <button class="button btn-secondary" id="undo-btn" onclick="undoLastRound()" style="display:none;">⚠️ Son Turu İptal Et / Geri Al</button>
+
+        <!-- GEÇMİŞ TUR SKORUNU DÜZELTME ALANI -->
+        <div id="edit-round-area" style="margin-top:25px; border-top: 2px dashed #ced4da; padding-top: 15px; display:none;">
+            <h2 style="font-size:16px; color:#2b9348;">✏️ Geçmiş Tur Skorunu Düzelt</h2>
+            <div class="form-group">
+                <label>Düzeltmek İstediğiniz Turu Seçin</label>
+                <select id="edit-round-select" onchange="loadRoundForEditing()"></select>
+            </div>
+            <div id="edit-form-fields" style="display:none;">
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><label>Dağıtan 🃏</label><select id="edit-dealer-select"></select></div>
+                    <div><label>Biten 🗣️</label><select id="edit-announcer-select"></select></div>
+                </div>
+                <div id="edit-dynamic-inputs" class="grid-inputs"></div>
+                <button class="button btn-success" onclick="saveEditedRound()">💾 Düzeltmeyi Kaydet</button>
+            </div>
+        </div>
     </div>
 
     <!-- YÖNTEM 2: GİZLİ YÖNETİCİ GİRİŞİ -->
@@ -256,10 +275,10 @@ HTML_ENGINE = """
 
             saveToLocalStorage();
             pushToCloud();
-            renderGame();
+            renderGame(true);
         }
 
-        function renderGame() {
+        function renderGame(clearInputs = false) {
             document.getElementById("setup-screen").style.display = "none";
             
             if (isAdmin) {
@@ -272,55 +291,163 @@ HTML_ENGINE = """
             
             document.getElementById("table-screen").style.display = "block";
 
-            const selectRound = document.getElementById("current-round-select");
-            const oldRoundVal = selectRound.value;
-            selectRound.innerHTML = "";
             let available = ROUNDS.filter(r => !state.completedRounds.includes(r));
             
             if (available.length === 0) {
-                document.getElementById("game-screen").innerHTML = "<h2>🎉 OYUN BITTI! 🎉</h2><p style='text-align:center; font-weight:bold; font-size:18px;'>Tüm turlar tamamlandı. Aşağıdaki tablodan kazananı görebilirsiniz.</p>";
+                document.getElementById("game-screen").innerHTML = `
+                    <h2>🎉 OYUN BİTTİ! 🎉</h2>
+                    <p style='text-align:center; font-weight:bold; font-size:16px; margin: 15px 0;'>16 turun tamamı oynandı. Kazananı aşağıdaki kümülatif tablodan görebilirsiniz.</p>
+                    <button class="button btn-secondary" id="undo-btn" onclick="undoLastRound()">⚠️ Son Turu (16. Tur) İptal Et / Geri Al</button>
+                    
+                    <div id="edit-round-area" style="margin-top:25px; border-top: 2px dashed #ced4da; padding-top: 15px;">
+                        <h2 style="font-size:16px; color:#2b9348;">✏️ Geçmiş Tur Skorunu Düzelt</h2>
+                        <div class="form-group">
+                            <label>Düzeltmek İstediğiniz Turu Seçin</label>
+                            <select id="edit-round-select" onchange="loadRoundForEditing()"></select>
+                        </div>
+                        <div id="edit-form-fields" style="display:none;">
+                            <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div><label>Dağıtan 🃏</label><select id="edit-dealer-select"></select></div>
+                                <div><label>Biten 🗣️</label><select id="edit-announcer-select"></select></div>
+                            </div>
+                            <div id="edit-dynamic-inputs" class="grid-inputs"></div>
+                            <button class="button btn-success" onclick="saveEditedRound()">💾 Düzeltmeyi Kaydet</button>
+                        </div>
+                    </div>
+                `;
             } else {
-                available.forEach(r => {
-                    let opt = document.createElement("option");
-                    opt.value = r; opt.innerText = r;
-                    selectRound.appendChild(opt);
-                });
-                if(oldRoundVal && available.includes(oldRoundVal)) {
-                    selectRound.value = oldRoundVal;
+                const selectRound = document.getElementById("current-round-select");
+                if (selectRound) {
+                    const oldRoundVal = selectRound.value;
+                    selectRound.innerHTML = "";
+                    available.forEach(r => {
+                        let opt = document.createElement("option");
+                        opt.value = r; opt.innerText = r;
+                        selectRound.appendChild(opt);
+                    });
+                    if(oldRoundVal && available.includes(oldRoundVal)) {
+                        selectRound.value = oldRoundVal;
+                    }
+                }
+
+                const dSelect = document.getElementById("dealer-select");
+                const aSelect = document.getElementById("announcer-select");
+                if (dSelect && aSelect) {
+                    const oldD = dSelect.value; const oldA = aSelect.value;
+                    dSelect.innerHTML = ""; aSelect.innerHTML = "";
+                    state.players.forEach(p => {
+                        let o1 = document.createElement("option"); o1.value = p; o1.innerText = p;
+                        let o2 = document.createElement("option"); o2.value = p; o2.innerText = p;
+                        dSelect.appendChild(o1); aSelect.appendChild(o2);
+                    });
+                    if(oldD) dSelect.value = oldD;
+                    if(oldA) aSelect.value = oldA;
+                }
+
+                const inputContainer = document.getElementById("dynamic-inputs");
+                if (inputContainer) {
+                    const currentInputs = {};
+                    if (!clearInputs) {
+                        state.players.forEach(p => {
+                            const el = document.getElementById(`input_${p}`);
+                            if(el) currentInputs[p] = el.value;
+                        });
+                    }
+
+                    inputContainer.innerHTML = "";
+                    state.players.forEach(p => {
+                        let div = document.createElement("div");
+                        div.className = "score-box";
+                        let savedVal = (currentInputs[p] !== undefined && !clearInputs) ? currentInputs[p] : "";
+                        div.innerHTML = `<label>${p}</label><input type="number" id="input_${p}" placeholder="0" value="${savedVal}">`;
+                        inputContainer.appendChild(div);
+                    });
+                }
+
+                const undoBtn = document.getElementById("undo-btn");
+                if (undoBtn) {
+                    undoBtn.style.display = state.completedRounds.length > 0 ? "block" : "none";
                 }
             }
 
-            const dSelect = document.getElementById("dealer-select");
-            const aSelect = document.getElementById("announcer-select");
-            const oldD = dSelect.value; const oldA = aSelect.value;
+            const editArea = document.getElementById("edit-round-area");
+            const editSelect = document.getElementById("edit-round-select");
+            if (editArea && editSelect) {
+                if (state.completedRounds.length > 0) {
+                    editArea.style.display = "block";
+                    const currentVal = editSelect.value;
+                    editSelect.innerHTML = '<option value="">-- Tur Seçin --</option>';
+                    state.completedRounds.forEach(r => {
+                        let opt = document.createElement("option");
+                        opt.value = r; opt.innerText = r;
+                        editSelect.appendChild(opt);
+                    });
+                    if (currentVal && state.completedRounds.includes(currentVal)) {
+                        editSelect.value = currentVal;
+                        loadRoundForEditing();
+                    } else {
+                        document.getElementById("edit-form-fields").style.display = "none";
+                    }
+                } else {
+                    editArea.style.display = "none";
+                }
+            }
+
+            renderTables();
+        }
+
+        function loadRoundForEditing() {
+            const r = document.getElementById("edit-round-select").value;
+            const editFields = document.getElementById("edit-form-fields");
+            if (!r) {
+                editFields.style.display = "none";
+                return;
+            }
+            editFields.style.display = "block";
+
+            const dSelect = document.getElementById("edit-dealer-select");
+            const aSelect = document.getElementById("edit-announcer-select");
             dSelect.innerHTML = ""; aSelect.innerHTML = "";
+            
+            const currentDetails = state.roundDetails[r] || {};
             state.players.forEach(p => {
                 let o1 = document.createElement("option"); o1.value = p; o1.innerText = p;
                 let o2 = document.createElement("option"); o2.value = p; o2.innerText = p;
+                if(currentDetails.dealer === p) o1.selected = true;
+                if(currentDetails.announcer === p) o2.selected = true;
                 dSelect.appendChild(o1); aSelect.appendChild(o2);
             });
-            if(oldD) dSelect.value = oldD;
-            if(oldA) aSelect.value = oldA;
 
-            const inputContainer = document.getElementById("dynamic-inputs");
-            const currentInputs = {};
-            state.players.forEach(p => {
-                const el = document.getElementById(`input_${p}`);
-                if(el) currentInputs[p] = el.value;
-            });
-
+            const inputContainer = document.getElementById("edit-dynamic-inputs");
             inputContainer.innerHTML = "";
+            const roundScores = state.scores[r] || {};
             state.players.forEach(p => {
                 let div = document.createElement("div");
                 div.className = "score-box";
-                let savedVal = currentInputs[p] !== undefined ? currentInputs[p] : "";
-                div.innerHTML = `<label>${p}</label><input type="number" id="input_${p}" placeholder="0" value="${savedVal}">`;
+                let val = roundScores[p] !== undefined ? roundScores[p] : 0;
+                div.innerHTML = `<label>${p}</label><input type="number" id="edit_input_${p}" value="${val}">`;
                 inputContainer.appendChild(div);
             });
+        }
 
-            document.getElementById("undo-btn").style.display = state.completedRounds.length > 0 ? "block" : "none";
+        function saveEditedRound() {
+            const r = document.getElementById("edit-round-select").value;
+            if (!r) return;
 
-            renderTables();
+            const dealer = document.getElementById("edit-dealer-select").value;
+            const announcer = document.getElementById("edit-announcer-select").value;
+
+            state.roundDetails[r] = { dealer: dealer, announcer: announcer };
+
+            state.players.forEach(p => {
+                let val = parseInt(document.getElementById(`edit_input_${p}`).value);
+                state.scores[r][p] = isNaN(val) ? 0 : val;
+            });
+
+            saveToLocalStorage();
+            pushToCloud();
+            alert(r + " skorları başarıyla güncellendi!");
+            renderGame();
         }
 
         function saveRound() {
@@ -340,7 +467,7 @@ HTML_ENGINE = """
             state.completedRounds.push(currentRound);
             saveToLocalStorage();
             pushToCloud();
-            renderGame();
+            renderGame(true); // KUTULARI SIFIRLAYARAK YENİDEN ÇİZ
         }
 
         function undoLastRound() {
